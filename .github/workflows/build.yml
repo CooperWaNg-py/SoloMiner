@@ -100,14 +100,42 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.name }}
           body: |
-            Automated build from commit ${{ github.sha }}
+            <p align="center">
+              <img src="https://raw.githubusercontent.com/CooperWaNg-py/SoloMiner/main/logo.png" width="96" alt="SoloMiner">
+            </p>
 
-            **Download the .zip**, extract it, and drag `SoloMiner.app` to your Applications folder.
+            <p align="center">
+              <strong>Solo Bitcoin mining from your macOS menu bar.</strong><br>
+              Metal GPU accelerated SHA-256d | Stratum v1 | Native macOS
+            </p>
 
-            > macOS might show a security warning on first launch since its not signed.
-            > Right-click the app and select Open, then click Open again to bypass it.
+            ---
 
-            Built on macOS 14 with Python 3.12.
+            ## Install
+
+            1. Download **SoloMiner-macos.zip** below
+            2. Extract the zip to get `SoloMiner.app`
+            3. Drag it to your **Applications** folder (or run from anywhere)
+
+            ## macOS Privacy & Security
+
+            This app is not signed with an Apple Developer certificate, so macOS Gatekeeper will block it on first launch. This is normal for open-source apps distributed outside the App Store.
+
+            **To open it:**
+
+            1. Double-click `SoloMiner.app` -- macOS will show *"SoloMiner can't be opened because Apple cannot check it for malicious software"*
+            2. Open **System Settings** > **Privacy & Security**
+            3. Scroll down -- you will see *"SoloMiner was blocked from use because it is not from an identified developer"*
+            4. Click **Open Anyway**
+            5. In the confirmation dialog, click **Open**
+
+            You only need to do this once. After that it opens normally.
+
+            > **Alternative:** Right-click the app > **Open** > click **Open** in the dialog to bypass Gatekeeper directly.
+
+            ---
+
+            Built from commit `${{ github.sha }}` on macOS 14 with Python 3.12.
           files: dist/SoloMiner-macos.zip
           draft: false
           prerelease: false
