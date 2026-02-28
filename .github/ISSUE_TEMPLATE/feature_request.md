@@ -7,7 +7,7 @@ assignees: CooperWaNg-py
 
 ---
 
-**What do you want to add***
+***What do you want to add***
 What do you want to add to SoloMiner
 
 ***Is it already made***
