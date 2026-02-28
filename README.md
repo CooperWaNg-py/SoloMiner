@@ -34,6 +34,11 @@ By **Cooper Wang**
 
 ## Quick Start
 
+One line install:
+```bash
+git clone https://github.com/CooperWaNg-py/SoloMiner.git && cd SoloMiner && pip3 install -r requirements.txt && python3 main.py
+```
+## OR
 ### 1. Install dependencies
 
 ```bash
@@ -214,6 +219,9 @@ Login item plist (when "Start at Login" is enabled):
 ```
 ~/Library/LaunchAgents/com.cooperwang.solominer.plist
 ```
+
+### Contributing
+Make a github issue for feature requests and stuff
 
 ## Donate
 
