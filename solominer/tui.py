@@ -32,6 +32,9 @@ from .config import (
     append_log,
     ping_pool,
     validate_bitcoin_address,
+    install_login_item,
+    uninstall_login_item,
+    is_login_item_installed,
     PoolConfig,
     DEFAULT_POOLS,
     APP_VERSION,
@@ -723,6 +726,12 @@ class SoloMinerTUI:
         cfg = self._config
         if self._sel_idx == 0:
             cfg.start_at_login = not cfg.start_at_login
+            # Actually install/uninstall launchd login item
+            if cfg.start_at_login:
+                ok, msg = install_login_item()
+            else:
+                ok, msg = uninstall_login_item()
+            append_log(f"[TUI] Login item: {msg}")
         elif self._sel_idx == 1:
             cfg.restart_on_stall = not cfg.restart_on_stall
         elif self._sel_idx == 2:

@@ -76,6 +76,9 @@ from .config import (
     append_log,
     ping_pool,
     validate_bitcoin_address,
+    install_login_item,
+    uninstall_login_item,
+    is_login_item_installed,
     PoolConfig,
     DEFAULT_POOLS,
     APP_VERSION,
@@ -1167,13 +1170,17 @@ class PopoverViewController(NSViewController):
         )
         self._login_toggle.setButtonType_(NSSwitchButton)
         self._login_toggle.setTitle_("")
-        self._login_toggle.setState_(1 if self._config.start_at_login else 0)
+        # Reflect actual launchd state, not just config
+        actual_installed = is_login_item_installed()
+        self._login_toggle.setState_(1 if actual_installed else 0)
         card.addSubview_(self._login_toggle)
 
-        status_lbl = make_label("Service ready", size=9, color=ACCENT_GREEN)
-        status_lbl.setFrame_(NSMakeRect(12, 5, 180, 14))
-        status_lbl.setTranslatesAutoresizingMaskIntoConstraints_(True)
-        card.addSubview_(status_lbl)
+        login_status = "Installed" if actual_installed else "Not installed"
+        login_color = ACCENT_GREEN if actual_installed else TEXT_SECONDARY
+        self._login_status_label = make_label(login_status, size=9, color=login_color)
+        self._login_status_label.setFrame_(NSMakeRect(12, 5, 180, 14))
+        self._login_status_label.setTranslatesAutoresizingMaskIntoConstraints_(True)
+        card.addSubview_(self._login_status_label)
 
         y -= 26
         header2 = make_label("Auto-Restart", size=13, bold=True)
@@ -1269,14 +1276,33 @@ class PopoverViewController(NSViewController):
     @objc.typedSelector(b"v@:@")
     def saveGeneralConfig_(self, sender):
         if self._config:
-            self._config.start_at_login = bool(self._login_toggle.state())
+            want_login = bool(self._login_toggle.state())
+            self._config.start_at_login = want_login
             self._config.restart_on_stall = bool(self._restart_toggle.state())
             timeout_items = [5, 10, 15, 30, 60]
             self._config.stall_timeout_minutes = timeout_items[
                 self._timeout_popup.indexOfSelectedItem()
             ]
             save_config(self._config)
-            append_log("General settings saved")
+
+            # Install or uninstall launchd login item
+            if want_login:
+                ok, msg = install_login_item()
+            else:
+                ok, msg = uninstall_login_item()
+
+            if hasattr(self, "_login_status_label") and self._login_status_label:
+                if want_login and ok:
+                    self._login_status_label.setStringValue_("Installed")
+                    self._login_status_label.setTextColor_(ACCENT_GREEN)
+                elif not want_login:
+                    self._login_status_label.setStringValue_("Not installed")
+                    self._login_status_label.setTextColor_(TEXT_SECONDARY)
+                else:
+                    self._login_status_label.setStringValue_("Failed")
+                    self._login_status_label.setTextColor_(ACCENT_RED)
+
+            append_log(f"General settings saved ({msg})")
 
     # ── Pools tab ──
     def _build_settings_pools(self, w, h):

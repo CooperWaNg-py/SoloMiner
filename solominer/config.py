@@ -15,6 +15,9 @@ LOG_FILE = os.path.join(CONFIG_DIR, "activity.log")
 STATS_FILE = os.path.join(CONFIG_DIR, "stats.json")
 CRASH_LOG_FILE = os.path.join(CONFIG_DIR, "crash.log")
 
+LAUNCHD_LABEL = "com.cooperwang.solominer"
+LAUNCHD_PLIST = os.path.expanduser(f"~/Library/LaunchAgents/{LAUNCHD_LABEL}.plist")
+
 
 APP_VERSION = "1.3.0"
 
@@ -155,6 +158,71 @@ def read_log() -> str:
 def clear_log():
     if os.path.exists(LOG_FILE):
         os.remove(LOG_FILE)
+
+
+def install_login_item() -> tuple:
+    """Install a launchd user agent so SoloMiner starts at login.
+    Returns (success: bool, message: str).
+
+    Detects the running context:
+      - If running from a .app bundle, launches the bundle executable.
+      - Otherwise, launches `python3 <main.py path>` from the source tree.
+    """
+    import plistlib
+    import sys
+
+    try:
+        # Determine what to launch
+        executable = sys.executable
+        main_script = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "main.py")
+        )
+
+        # Check if we're inside a .app bundle
+        # e.g. /Applications/SoloMiner.app/Contents/MacOS/SoloMiner
+        if ".app/Contents/" in executable:
+            program_args = [executable]
+        elif os.path.exists(main_script):
+            program_args = [executable, main_script]
+        else:
+            return (False, f"Cannot find main.py at {main_script}")
+
+        plist = {
+            "Label": LAUNCHD_LABEL,
+            "ProgramArguments": program_args,
+            "RunAtLoad": True,
+            "KeepAlive": False,
+            "StandardOutPath": os.path.join(CONFIG_DIR, "launchd_stdout.log"),
+            "StandardErrorPath": os.path.join(CONFIG_DIR, "launchd_stderr.log"),
+        }
+
+        # Ensure LaunchAgents directory exists
+        launch_dir = os.path.dirname(LAUNCHD_PLIST)
+        os.makedirs(launch_dir, exist_ok=True)
+
+        with open(LAUNCHD_PLIST, "wb") as f:
+            plistlib.dump(plist, f)
+
+        return (True, f"Login item installed: {LAUNCHD_PLIST}")
+    except Exception as e:
+        return (False, f"Failed to install login item: {e}")
+
+
+def uninstall_login_item() -> tuple:
+    """Remove the launchd user agent plist.
+    Returns (success: bool, message: str)."""
+    try:
+        if os.path.exists(LAUNCHD_PLIST):
+            os.remove(LAUNCHD_PLIST)
+            return (True, "Login item removed")
+        return (True, "Login item was not installed")
+    except Exception as e:
+        return (False, f"Failed to remove login item: {e}")
+
+
+def is_login_item_installed() -> bool:
+    """Check if the launchd login item plist exists."""
+    return os.path.exists(LAUNCHD_PLIST)
 
 
 def validate_bitcoin_address(address: str, network: str = "Mainnet") -> tuple:
