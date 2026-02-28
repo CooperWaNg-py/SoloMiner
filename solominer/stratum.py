@@ -49,6 +49,10 @@ class StratumJob:
     )
 
     def __init__(self, params, extranonce1, extranonce2_size):
+        if not params or len(params) < 8:
+            raise ValueError(
+                f"mining.notify requires at least 8 params, got {len(params) if params else 0}"
+            )
         self.job_id = params[0]
         self.prevhash = params[1]
         self.coinb1 = params[2]
@@ -105,6 +109,9 @@ class StratumClient:
         self._running = False
         self._msg_id = 0
         self._lock = threading.Lock()
+        self._disconnected = (
+            False  # ensures _handle_disconnect fires once per connection
+        )
 
         # Message ID tracking: maps msg_id -> purpose string
         self._pending_requests: dict = {}
@@ -164,7 +171,18 @@ class StratumClient:
             return self._msg_id
 
     def _reset_state(self):
-        """Reset all connection state for a fresh start."""
+        """Reset all connection state for a fresh start.
+        Closes the existing socket if one is open."""
+        # Close existing socket to prevent leaks
+        if self._socket:
+            try:
+                self._socket.close()
+            except Exception:
+                pass
+            self._socket = None
+        # Signal old threads to stop
+        self._running = False
+        self._disconnected = False
         self.extranonce1 = None
         self.extranonce2_size = 4
         self.difficulty = 1.0
@@ -193,6 +211,7 @@ class StratumClient:
             except socket.gaierror as e:
                 self._log_error(f"DNS resolution failed for {self.host}: {e}")
                 self._set_status("DNS Failed")
+                self._close_socket()
                 if self.on_error:
                     self.on_error(f"DNS resolution failed: {e}")
                 return
@@ -234,18 +253,21 @@ class StratumClient:
         except socket.timeout:
             self._log_error(f"Connection timed out to {self.host}:{self.port}")
             self._set_status("Timeout")
+            self._close_socket()
             self.connected = False
             if self.on_error:
                 self.on_error("Connection timed out")
         except ConnectionRefusedError:
             self._log_error(f"Connection refused by {self.host}:{self.port}")
             self._set_status("Refused")
+            self._close_socket()
             self.connected = False
             if self.on_error:
                 self.on_error("Connection refused")
         except Exception as e:
             self._log_error(f"Connection failed: {e}")
             self._set_status("Error")
+            self._close_socket()
             self.connected = False
             if self.on_error:
                 self.on_error(f"Connection failed: {e}")
@@ -324,7 +346,16 @@ class StratumClient:
                     self._handle_disconnect()
                     return
                 self._last_recv_time = time.time()
-                buf += data.decode()
+                try:
+                    buf += data.decode("utf-8", errors="replace")
+                except Exception:
+                    buf += data.decode("latin-1")
+
+                # Guard against unbounded buffer growth
+                if len(buf) > 1_000_000:
+                    self._log_error("Receive buffer overflow (>1MB without newline)")
+                    self._handle_disconnect()
+                    return
 
                 # Process all complete lines (multiple JSON messages per recv)
                 while "\n" in buf:
@@ -386,11 +417,26 @@ class StratumClient:
                 self._handle_disconnect()
                 return
 
+    def _close_socket(self):
+        """Close the socket safely. Can be called from any thread."""
+        if self._socket:
+            try:
+                self._socket.close()
+            except Exception:
+                pass
+            self._socket = None
+
     def _handle_disconnect(self):
-        was_connected = self.connected
-        self._running = False
-        self.connected = False
-        self.authorized = False
+        """Handle connection loss. Guaranteed to fire on_disconnect only once
+        per connection via _disconnected flag."""
+        with self._lock:
+            if self._disconnected:
+                return  # Already handled for this connection
+            self._disconnected = True
+            was_connected = self.connected
+            self._running = False
+            self.connected = False
+            self.authorized = False
         if was_connected:
             self._log("Connection lost")
             self._set_status("Disconnected")
@@ -607,7 +653,8 @@ class StratumClient:
             self.on_authorized(self.authorized)
 
     def _handle_submit_response(self, msg_id, result, error):
-        accepted = bool(result)
+        # If error field is present and non-null, it's a rejection regardless of result
+        accepted = bool(result) and not error
         err_msg = None
         if error:
             if isinstance(error, list) and len(error) >= 2:

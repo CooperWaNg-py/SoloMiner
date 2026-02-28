@@ -145,7 +145,7 @@ kernel void mine_sha256d(
     block[0] = header_data[16];
     block[1] = header_data[17];
     block[2] = header_data[18];
-    block[3] = nonce;  // nonce at offset 76 (uint index 19)
+    block[3] = swap32(nonce);  // nonce at offset 76 — byte-swap to match BE-loaded header
     block[4] = 0x80000000;
     for (int i = 5; i < 15; i++) block[i] = 0;
     block[15] = 640;  // 80 * 8 bits

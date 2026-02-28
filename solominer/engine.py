@@ -76,6 +76,7 @@ class MiningEngine:
 
     def __init__(self):
         self.stratum: Optional[StratumClient] = None
+        self._stratum_lock = threading.Lock()  # protects self.stratum
         self.miner: Optional[MetalMiner] = None
         self.current_job: Optional[StratumJob] = None
         self._job_lock = threading.Lock()
@@ -122,6 +123,7 @@ class MiningEngine:
         # Reconnect support
         self._reconnect_enabled = True
         self._reconnect_params: Optional[tuple] = None
+        self._reconnect_timer: Optional[threading.Timer] = None
 
     @property
     def active_thread_count(self) -> int:
@@ -245,9 +247,15 @@ class MiningEngine:
         self._reconnect_enabled = False
         self._set_status("Stopping")
 
-        if self.stratum:
-            self.stratum.disconnect()
-            self.stratum = None
+        # Cancel pending reconnect timer
+        if self._reconnect_timer:
+            self._reconnect_timer.cancel()
+            self._reconnect_timer = None
+
+        with self._stratum_lock:
+            if self.stratum:
+                self.stratum.disconnect()
+                self.stratum = None
 
         self._job_event.set()  # Wake up mining threads so they exit
 
@@ -258,7 +266,8 @@ class MiningEngine:
 
         self._save_session_stats()
 
-        self.current_job = None
+        with self._job_lock:
+            self.current_job = None
         self.hashrate = 0
         self.uptime_start = None
         self._set_status("Idle")
@@ -395,16 +404,18 @@ class MiningEngine:
         with self._stats_lock:
             if accepted:
                 self.shares_accepted += 1
-                append_log(
-                    f"[ENGINE] Share ACCEPTED "
-                    f"({self.shares_accepted}/{self.shares_submitted})"
-                )
+                accepted_count = self.shares_accepted
+                submitted_count = self.shares_submitted
             else:
                 self.shares_rejected += 1
-                append_log(
-                    f"[ENGINE] Share REJECTED: {error_msg} "
-                    f"({self.shares_rejected} rejected)"
-                )
+                rejected_count = self.shares_rejected
+        # Log outside the lock to avoid blocking mining threads on disk I/O
+        if accepted:
+            append_log(f"[ENGINE] Share ACCEPTED ({accepted_count}/{submitted_count})")
+        else:
+            append_log(
+                f"[ENGINE] Share REJECTED: {error_msg} ({rejected_count} rejected)"
+            )
 
     def _on_disconnect(self):
         append_log("[ENGINE] Disconnected from pool")
@@ -414,7 +425,9 @@ class MiningEngine:
             delay = 5 + random.uniform(0, 5)  # Jitter to avoid thundering herd
             append_log(f"[ENGINE] Reconnecting in {delay:.1f}s...")
             self._set_status("Reconnecting")
-            threading.Timer(delay, self._reconnect).start()
+            timer = threading.Timer(delay, self._reconnect)
+            self._reconnect_timer = timer
+            timer.start()
         else:
             self._set_status("Disconnected")
 
@@ -446,7 +459,7 @@ class MiningEngine:
         """Main mining loop running on a background thread.
         thread_idx partitions the nonce space when multiple threads run."""
         nonce_offset = 0
-        self._last_hashrate_time = time.time()
+        last_hr_time = time.time()  # per-thread to avoid shared-state race
         current_job_id = None
 
         append_log(f"[ENGINE] Mining loop {thread_idx} started")
@@ -536,9 +549,9 @@ class MiningEngine:
                         header, share_target, nonce_offset, batch_size
                     )
 
-                # Update hashrate (every second)
+                # Update hashrate (every second, per-thread local timer)
                 now = time.time()
-                elapsed = now - self._last_hashrate_time
+                elapsed = now - last_hr_time
                 if elapsed >= 1.0:
                     hashes = (
                         self.miner.get_and_reset_hashcount()
@@ -550,7 +563,7 @@ class MiningEngine:
                         self._hashes_since_last += hashes
                         if self.hashrate > self._peak_hashrate:
                             self._peak_hashrate = self.hashrate
-                    self._last_hashrate_time = now
+                    last_hr_time = now
 
                     # Auto-tune difficulty based on measured hashrate.
                     # After HASHRATE_MEASUREMENT_PERIOD seconds of mining,
@@ -578,8 +591,10 @@ class MiningEngine:
                                 f"optimal difficulty: {optimal_diff} "
                                 f"(target: ~1 share per {TARGET_SHARE_INTERVAL}s)"
                             )
-                            if self.stratum and self.stratum.connected:
-                                self.stratum.suggest_difficulty(optimal_diff)
+                            with self._stratum_lock:
+                                s = self.stratum
+                            if s and s.connected:
+                                s.suggest_difficulty(optimal_diff)
                             self._hashrate_diff_suggested = True
 
                     # Persist cumulative stats periodically (not every second)
@@ -597,18 +612,26 @@ class MiningEngine:
 
                 # Handle found share
                 if result is not None:
-                    # The GPU loads the header as big-endian uint32 words and
-                    # replaces the nonce word (index 19) with its candidate.
-                    # The original nonce in the header is little-endian, so the
-                    # GPU value is byte-swapped relative to the actual nonce.
-                    # Stratum expects: format(actual_nonce, "08x")
-                    # So we byte-swap the GPU result to get the real nonce value.
-                    if self.miner and self.miner.use_gpu:
-                        actual_nonce = struct.unpack("<I", struct.pack(">I", result))[0]
-                        nonce_hex = format(actual_nonce, "08x")
-                    else:
-                        actual_nonce = result
-                        nonce_hex = format(result, "08x")
+                    # The GPU shader applies swap32(nonce) before hashing to
+                    # match the big-endian-loaded header words. The nonce
+                    # stored in results[1] is the raw nonce value, which is
+                    # the actual little-endian nonce for the block header.
+                    # Stratum expects: format(nonce, "08x")
+                    nonce_hex = format(result, "08x")
+
+                    # CPU-side verification: re-hash with found nonce
+                    verify_header = header[:76] + struct.pack("<I", result)
+                    verify_hash = hashlib.sha256(
+                        hashlib.sha256(verify_header).digest()
+                    ).digest()
+                    verify_int = int.from_bytes(verify_hash, byteorder="little")
+                    if verify_int >= share_target:
+                        append_log(
+                            f"[ENGINE] WARNING: GPU nonce 0x{result:08x} failed "
+                            f"CPU verification (hash >= target), skipping"
+                        )
+                        nonce_offset = (nonce_offset + batch_size) & 0xFFFFFFFF
+                        continue
 
                     with self._stats_lock:
                         self.shares_submitted += 1
@@ -618,10 +641,10 @@ class MiningEngine:
                         f"nonce=0x{result:08x} hex={nonce_hex} "
                         f"job={job.job_id}"
                     )
-                    if self.stratum:
-                        self.stratum.submit_share(
-                            job.job_id, extranonce2, job.ntime, nonce_hex
-                        )
+                    with self._stratum_lock:
+                        s = self.stratum
+                    if s:
+                        s.submit_share(job.job_id, extranonce2, job.ntime, nonce_hex)
 
                 nonce_offset = (nonce_offset + batch_size) & 0xFFFFFFFF
 
