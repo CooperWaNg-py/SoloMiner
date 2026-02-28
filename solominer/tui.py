@@ -31,6 +31,7 @@ from .config import (
     clear_log,
     append_log,
     ping_pool,
+    validate_bitcoin_address,
     PoolConfig,
     DEFAULT_POOLS,
     APP_VERSION,
@@ -585,6 +586,13 @@ class SoloMinerTUI:
             self._config.worker_name = val
         elif label == "Address":
             self._config.bitcoin_address = val
+            # Validate address and show result in log
+            if val:
+                valid, err = validate_bitcoin_address(val, self._config.network)
+                if valid:
+                    append_log(f"[TUI] Address accepted: {val[:16]}...")
+                else:
+                    append_log(f"[TUI] Address warning: {err}")
         self._input_mode = False
         self._input_field = ""
         self._input_buffer = ""
@@ -1111,6 +1119,12 @@ class SoloMinerTUI:
                 append_log(
                     "[TUI] ERROR: No Bitcoin address. Configure in Settings > Mining."
                 )
+                return
+
+            # Validate address format
+            valid, err = validate_bitcoin_address(address, self._config.network)
+            if not valid:
+                append_log(f"[TUI] ERROR: Invalid address: {err}")
                 return
 
             pools = self._config.pools

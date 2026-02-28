@@ -157,6 +157,66 @@ def clear_log():
         os.remove(LOG_FILE)
 
 
+def validate_bitcoin_address(address: str, network: str = "Mainnet") -> tuple:
+    """Validate a Bitcoin address.
+    Returns (is_valid: bool, error: str).
+
+    Checks format and prefix for:
+      - Legacy P2PKH (1...)
+      - Legacy P2SH (3...)
+      - Native SegWit bech32 (bc1q...)
+      - Taproot bech32m (bc1p...)
+      - Testnet equivalents (m/n/2/tb1q/tb1p)
+    Does NOT do full checksum verification (no base58check/bech32 libs)."""
+    if not address or not address.strip():
+        return (False, "Address is empty")
+
+    address = address.strip()
+
+    # Determine expected prefixes based on network
+    is_testnet = network.lower() in ("testnet3", "testnet4", "signet", "regtest")
+
+    if is_testnet:
+        # Testnet: 1-prefix P2PKH uses m or n, P2SH uses 2, bech32 uses tb1
+        valid_legacy = address[0] in ("m", "n", "2")
+        valid_bech32 = address.lower().startswith(("tb1q", "tb1p"))
+        # Regtest uses bcrt1
+        valid_regtest = address.lower().startswith("bcrt1")
+        if not (valid_legacy or valid_bech32 or valid_regtest):
+            return (False, "Not a valid testnet/regtest address prefix")
+    else:
+        # Mainnet
+        valid_legacy = address[0] in ("1", "3")
+        valid_bech32 = address.lower().startswith(("bc1q", "bc1p"))
+        if not (valid_legacy or valid_bech32):
+            return (False, "Must start with 1, 3, bc1q, or bc1p")
+
+    # Length checks
+    lower = address.lower()
+    if lower.startswith(("bc1", "tb1", "bcrt1")):
+        # Bech32/bech32m: bc1q is 42-62 chars, bc1p is 62 chars (taproot)
+        if len(address) < 14 or len(address) > 90:
+            return (False, f"Bech32 address length {len(address)} out of range")
+        # Character set: bech32 uses only lowercase + digits (no 1boi after prefix)
+        prefix_end = address.index("1") + 1  # find the separator '1'
+        data_part = lower[prefix_end:]
+        bech32_chars = set("qpzry9x8gf2tvdw0s3jn54khce6mua7l")
+        invalid = set(data_part) - bech32_chars
+        if invalid:
+            return (False, f"Invalid bech32 character(s): {''.join(sorted(invalid))}")
+    else:
+        # Base58 legacy: 25-34 characters
+        if len(address) < 25 or len(address) > 34:
+            return (False, f"Legacy address length {len(address)} out of range (25-34)")
+        # Base58 character set (no 0, O, I, l)
+        base58_chars = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+        invalid = set(address) - base58_chars
+        if invalid:
+            return (False, f"Invalid base58 character(s): {''.join(sorted(invalid))}")
+
+    return (True, "")
+
+
 def ping_pool(host: str, port: int, timeout: float = 3.0) -> tuple:
     """TCP ping a pool to check if it's online.
     Returns (is_online: bool, latency_ms: float, error: str)."""

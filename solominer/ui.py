@@ -75,6 +75,7 @@ from .config import (
     clear_log,
     append_log,
     ping_pool,
+    validate_bitcoin_address,
     PoolConfig,
     DEFAULT_POOLS,
     APP_VERSION,
@@ -965,6 +966,14 @@ class PopoverViewController(NSViewController):
             self._auth_label.setTextColor_(ACCENT_RED)
             return
 
+        # Validate address format
+        valid, err = validate_bitcoin_address(address, self._config.network)
+        if not valid:
+            append_log(f"ERROR: Invalid Bitcoin address: {err}")
+            self._auth_label.setStringValue_("Bad Address")
+            self._auth_label.setTextColor_(ACCENT_RED)
+            return
+
         pools = self._config.pools
         if not pools:
             return
@@ -1567,6 +1576,16 @@ class PopoverViewController(NSViewController):
         self._addr_coin_hint.setTranslatesAutoresizingMaskIntoConstraints_(True)
         card3.addSubview_(self._addr_coin_hint)
 
+        # Address validation status label (shown below card)
+        y -= 2
+        self._addr_valid_label = make_label("", size=9, color=ACCENT_GREEN)
+        self._addr_valid_label.setFrame_(
+            NSMakeRect(pad + 12, y - 14, w - pad * 2 - 24, 14)
+        )
+        self._addr_valid_label.setTranslatesAutoresizingMaskIntoConstraints_(True)
+        view.addSubview_(self._addr_valid_label)
+        y -= 14
+
         # ── Thread / Core Selection ──
         y -= 20
         header4 = make_label("Thread Config", size=13, bold=True)
@@ -1845,9 +1864,24 @@ class PopoverViewController(NSViewController):
         self._config.network = networks[idx]
         self._config.worker_name = str(self._worker_field.stringValue())
 
-        # Save Bitcoin address
-        current_addr = str(self._address_field.stringValue())
+        # Save and validate Bitcoin address
+        current_addr = str(self._address_field.stringValue()).strip()
         self._config.bitcoin_address = current_addr
+
+        # Validate address
+        if current_addr:
+            valid, err = validate_bitcoin_address(current_addr, self._config.network)
+            if hasattr(self, "_addr_valid_label") and self._addr_valid_label:
+                if valid:
+                    self._addr_valid_label.setStringValue_("Address looks valid")
+                    self._addr_valid_label.setTextColor_(ACCENT_GREEN)
+                else:
+                    self._addr_valid_label.setStringValue_(err)
+                    self._addr_valid_label.setTextColor_(ACCENT_RED)
+        else:
+            if hasattr(self, "_addr_valid_label") and self._addr_valid_label:
+                self._addr_valid_label.setStringValue_("No address set")
+                self._addr_valid_label.setTextColor_(ACCENT_ORANGE)
 
         # Thread config
         gpu_idx = self._gpu_threads_popup.indexOfSelectedItem()
