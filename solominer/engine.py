@@ -343,7 +343,7 @@ class MiningEngine:
                 # Metal handles parallelism internally, so 1 is usually fine
                 n_threads = self._gpu_threads if self._gpu_threads > 0 else 1
             else:
-                # CPU mining (SHA-256d fallback, Scrypt, RandomX)
+                # CPU fallback mining (no Metal GPU)
                 n_threads = (
                     self._cpu_threads
                     if self._cpu_threads > 0

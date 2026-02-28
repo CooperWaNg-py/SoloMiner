@@ -14,6 +14,8 @@ By **Cooper Wang**
 - **Stratum v1** -- connects to any Bitcoin solo mining pool
 - **Auto-reconnect** -- recovers from dropped connections with jitter
 - **Difficulty auto-tune** -- measures hashrate and suggests optimal pool difficulty
+- **Address validation** -- checks P2PKH, P2SH, bech32, and taproot formats before mining
+- **Start at login** -- optional launchd agent for automatic startup
 - **Live dashboard** -- hashrate, shares, uptime, GPU info, animated status
 - **Built-in benchmark** -- test your GPU hash rate without connecting to a pool
 - **Terminal UI** -- full curses-based TUI with the same features as the GUI
@@ -148,7 +150,7 @@ SoloMiner/
     requirements.txt     # Python dependencies
     solominer/
         __init__.py      # Package init, version
-        config.py        # MinerConfig dataclass, JSON persistence, pool ping
+        config.py        # MinerConfig, JSON persistence, address validation, launchd
         engine.py        # MiningEngine: stratum + GPU mining loop
         metal_miner.py   # Metal SHA-256d shader, MetalMiner class
         stratum.py       # Stratum v1 protocol client
@@ -189,6 +191,11 @@ Other files in the same directory:
 - `activity.log` -- mining activity log
 - `stats.json` -- cumulative statistics (hashes, runtime, shares)
 - `crash.log` -- crash reports
+
+Login item plist (when "Start at Login" is enabled):
+```
+~/Library/LaunchAgents/com.cooperwang.solominer.plist
+```
 
 ## License
 
