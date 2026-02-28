@@ -762,7 +762,7 @@ class SoloMinerTUI:
         )
         # Word wrap
         for line in _word_wrap(desc, w - cx - 2):
-            if y >= h - 8:
+            if y >= h - 12:
                 break
             _safe_addstr(win, y, cx, line, curses.color_pair(C_DIM))
             y += 1
@@ -776,11 +776,26 @@ class SoloMinerTUI:
             ("Platform", "macOS (ARM + Intel)"),
         ]
         for label, val in info:
-            if y >= h - 2:
+            if y >= h - 5:
                 break
             _safe_addstr(win, y, cx, f"{label}:", curses.color_pair(C_DIM))
             _safe_addstr(win, y, cx + 14, val, curses.A_BOLD)
             y += 1
+
+        y += 1
+        if y < h - 3:
+            _safe_addstr(win, y, cx, "Donate:", curses.color_pair(C_DIM))
+            y += 1
+        if y < h - 2:
+            from .config import DONATION_ADDRESS
+
+            _safe_addstr(
+                win,
+                y,
+                cx,
+                DONATION_ADDRESS,
+                curses.color_pair(C_ORANGE) | curses.A_BOLD,
+            )
 
     # ═══════════════════════════════════════════════════════════
     # Stats

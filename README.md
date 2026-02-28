@@ -1,5 +1,9 @@
 # SoloMiner
 
+<p align="center">
+  <img src="logo.png" width="128" alt="SoloMiner logo">
+</p>
+
 A lightweight macOS menu bar application for solo Bitcoin mining. Uses Apple Metal for GPU-accelerated SHA-256d hashing and connects to pools via the Stratum v1 protocol.
 
 By **Cooper Wang**
@@ -139,6 +143,20 @@ The .app bundle is configured with `LSUIElement = true`, so it runs as a menu ba
 open dist/SoloMiner.app
 ```
 
+### macOS Security Warning
+
+Since the app is not signed with an Apple Developer certificate, macOS will block it from opening the first time. To get around this:
+
+1. Try to open `SoloMiner.app` -- macOS will say it "can't be opened because Apple cannot check it for malicious software"
+2. Open **System Settings** > **Privacy & Security**
+3. Scroll down -- you'll see a message about SoloMiner being blocked
+4. Click **Open Anyway**
+5. In the confirmation dialog, click **Open**
+
+You only have to do this once. After that it opens normally.
+
+Alternatively, you can right-click the app > **Open** > **Open** to bypass Gatekeeper.
+
 ## Project Structure
 
 ```
@@ -195,6 +213,14 @@ Other files in the same directory:
 Login item plist (when "Start at Login" is enabled):
 ```
 ~/Library/LaunchAgents/com.cooperwang.solominer.plist
+```
+
+## Donate
+
+If you want to support the project:
+
+```
+16JXoJL46hAZSjtWrKYyoMcur1VtwWAbeB
 ```
 
 ## License

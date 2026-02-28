@@ -269,6 +269,7 @@
 <!-- hero -->
 <div class="hero">
     <div class="glow"></div>
+    <img src="logo.png" alt="SoloMiner" width="96" height="96" style="border-radius: 18px; margin-bottom: 16px;">
     <span class="version-badge">v1.3.0 &mdash; macOS only</span>
     <h1>SoloMiner</h1>
     <p class="tagline">A lightweight menu bar app for solo mining Bitcoin on your Mac. GPU accelerated with Apple Metal.</p>
@@ -397,6 +398,8 @@
 
     <p>There's also a <code>setup.py</code> for py2app if you prefer that. Check the README for more details. Fair warning - PyObjC bundling can be finicky depending on your Python version. Running with <code>python3 main.py</code> is the most reliable method.</p>
     <p>Automated builds run every 4 commits and get posted to the <a href="https://github.com/CooperWaNg-py/SoloMiner/releases" style="color: #007aff;">Releases page</a>.</p>
+
+    <p style="margin-top: 1.5rem; color: #aaa;"><strong>Heads up:</strong> macOS will block the app from opening since its not signed. Go to <strong>System Settings > Privacy & Security</strong>, scroll down, and click <strong>Open Anyway</strong> next to the SoloMiner message. Or just right-click the app and select Open. You only have to do this once.</p>
 </section>
 
 <!-- faq -->
@@ -422,6 +425,16 @@
         <h3>Why solo mining instead of a regular pool?</h3>
         <p>Regular pool mining with consumer hardware earns you like fractions of a penny per day after electricity. Not worth it. Solo mining earns you nothing 99.9999% of the time but has that tiny chance of a full block reward. Its more fun imo.</p>
     </div>
+</section>
+
+<!-- donate -->
+<section style="text-align: center;">
+    <h2>Support the Project</h2>
+    <p>If you want to throw some sats my way, heres my Bitcoin address:</p>
+    <div class="code-block" style="display: inline-block; padding: 14px 28px; font-size: 0.85rem; letter-spacing: 0.5px; color: #ff9f0a;">
+        16JXoJL46hAZSjtWrKYyoMcur1VtwWAbeB
+    </div>
+    <p style="margin-top: 12px; font-size: 0.85rem;">No pressure obviously. The whole thing is free and open source.</p>
 </section>
 
 <!-- footer -->

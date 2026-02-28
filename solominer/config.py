@@ -26,6 +26,7 @@ ALGORITHM = "SHA-256d"
 COIN = "Bitcoin"
 TICKER = "BTC"
 ADDRESS_HINT = "bc1q..."
+DONATION_ADDRESS = "16JXoJL46hAZSjtWrKYyoMcur1VtwWAbeB"
 
 
 @dataclass

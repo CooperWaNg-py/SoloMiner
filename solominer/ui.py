@@ -56,6 +56,9 @@ from AppKit import (
     NSFontWeightBold,
     NSFontWeightRegular,
     NSForegroundColorAttributeName,
+    NSImage,
+    NSImageView,
+    NSImageScaleProportionallyUpOrDown,
 )
 
 try:
@@ -82,6 +85,7 @@ from .config import (
     PoolConfig,
     DEFAULT_POOLS,
     APP_VERSION,
+    DONATION_ADDRESS,
 )
 from .engine import MiningEngine
 
@@ -1680,54 +1684,74 @@ class PopoverViewController(NSViewController):
     # ── About tab ──
     def _build_settings_about(self, w, h):
         view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, w, h))
-        y = h - 25
+        y = h - 10
 
+        # ── Logo ──
+        logo_size = 64
+        logo_path = os.path.join(os.path.dirname(__file__), "..", "logo.png")
+        if os.path.exists(logo_path):
+            y -= logo_size + 4
+            img = NSImage.alloc().initWithContentsOfFile_(os.path.abspath(logo_path))
+            if img:
+                img_view = NSImageView.alloc().initWithFrame_(
+                    NSMakeRect((w - logo_size) / 2, y, logo_size, logo_size)
+                )
+                img_view.setImage_(img)
+                img_view.setImageScaling_(NSImageScaleProportionallyUpOrDown)
+                img_view.setWantsLayer_(True)
+                img_view.layer().setCornerRadius_(14)
+                img_view.layer().setMasksToBounds_(True)
+                view.addSubview_(img_view)
+        else:
+            y -= 8
+
+        y -= 4
         title = make_label(
-            "SoloMiner", size=22, bold=True, alignment=NSTextAlignmentCenter
+            "SoloMiner", size=20, bold=True, alignment=NSTextAlignmentCenter
         )
-        title.setFrame_(NSMakeRect(0, y, w, 28))
+        title.setFrame_(NSMakeRect(0, y, w, 24))
         title.setTranslatesAutoresizingMaskIntoConstraints_(True)
         view.addSubview_(title)
 
-        y -= 20
+        y -= 16
         ver = make_label(
             f"Version {APP_VERSION}",
-            size=12,
-            color=TEXT_SECONDARY,
-            alignment=NSTextAlignmentCenter,
-        )
-        ver.setFrame_(NSMakeRect(0, y, w, 18))
-        ver.setTranslatesAutoresizingMaskIntoConstraints_(True)
-        view.addSubview_(ver)
-
-        y -= 16
-        author = make_label(
-            "by Cooper Wang",
             size=11,
             color=TEXT_SECONDARY,
             alignment=NSTextAlignmentCenter,
         )
-        author.setFrame_(NSMakeRect(0, y, w, 16))
+        ver.setFrame_(NSMakeRect(0, y, w, 16))
+        ver.setTranslatesAutoresizingMaskIntoConstraints_(True)
+        view.addSubview_(ver)
+
+        y -= 14
+        author = make_label(
+            "by Cooper Wang",
+            size=10,
+            color=TEXT_SECONDARY,
+            alignment=NSTextAlignmentCenter,
+        )
+        author.setFrame_(NSMakeRect(0, y, w, 14))
         author.setTranslatesAutoresizingMaskIntoConstraints_(True)
         view.addSubview_(author)
 
-        y -= 50
+        y -= 38
         desc = NSTextField.wrappingLabelWithString_(
             "A lightweight, native macOS menu bar application for solo Bitcoin mining. "
             "Uses Apple Metal for GPU-accelerated SHA-256d hashing. "
             "Connects to pools via the Stratum v1 protocol."
         )
-        desc.setFont_(NSFont.systemFontOfSize_weight_(11, NSFontWeightRegular))
+        desc.setFont_(NSFont.systemFontOfSize_weight_(10, NSFontWeightRegular))
         desc.setTextColor_(TEXT_SECONDARY)
         desc.setAlignment_(NSTextAlignmentCenter)
-        desc.setFrame_(NSMakeRect(30, y, w - 60, 48))
+        desc.setFrame_(NSMakeRect(25, y, w - 50, 36))
         desc.setTranslatesAutoresizingMaskIntoConstraints_(True)
         view.addSubview_(desc)
 
-        y -= 18
-        card_h = 128
+        y -= 8
+        card_h = 118
         y -= card_h
-        card = _make_inline_card(25, y, w - 50, card_h)
+        card = _make_inline_card(20, y, w - 40, card_h)
         view.addSubview_(card)
 
         items = [
@@ -1737,27 +1761,49 @@ class PopoverViewController(NSViewController):
             ("Protocol", "Stratum v1"),
             ("Platform", "macOS (ARM + Intel)"),
         ]
-        row_h = 22
-        ey = card_h - 8
+        row_h = 20
+        ey = card_h - 6
         for i, (k, v) in enumerate(items):
             ey -= row_h
-            kl = make_label(k, size=10, color=TEXT_SECONDARY)
-            kl.setFrame_(NSMakeRect(14, ey, 90, 16))
+            kl = make_label(k, size=9, color=TEXT_SECONDARY)
+            kl.setFrame_(NSMakeRect(12, ey, 80, 14))
             kl.setTranslatesAutoresizingMaskIntoConstraints_(True)
             card.addSubview_(kl)
 
-            vl = make_label(v, size=10, bold=True)
-            vl.setFrame_(NSMakeRect(110, ey, w - 170, 16))
+            vl = make_label(v, size=9, bold=True)
+            vl.setFrame_(NSMakeRect(98, ey, w - 140, 14))
             vl.setTranslatesAutoresizingMaskIntoConstraints_(True)
             card.addSubview_(vl)
 
             if i < len(items) - 1:
                 row_sep = NSView.alloc().initWithFrame_(
-                    NSMakeRect(14, ey - 3, w - 78, 1)
+                    NSMakeRect(12, ey - 3, w - 68, 1)
                 )
                 row_sep.setWantsLayer_(True)
                 _set_bg(row_sep.layer(), BORDER_COLOR)
                 card.addSubview_(row_sep)
+
+        # ── Donation address ──
+        y -= 18
+        donate_header = make_label("Donate", size=10, bold=True)
+        donate_header.setFrame_(NSMakeRect(20, y, 80, 14))
+        donate_header.setTranslatesAutoresizingMaskIntoConstraints_(True)
+        view.addSubview_(donate_header)
+
+        y -= 30
+        donate_card = _make_inline_card(20, y, w - 40, 26)
+        view.addSubview_(donate_card)
+
+        donate_lbl = make_label(
+            DONATION_ADDRESS, size=8, color=ACCENT_ORANGE, bold=True
+        )
+        donate_lbl.setFont_(
+            NSFont.monospacedSystemFontOfSize_weight_(8, NSFontWeightBold)
+        )
+        donate_lbl.setFrame_(NSMakeRect(8, 5, w - 56, 16))
+        donate_lbl.setTranslatesAutoresizingMaskIntoConstraints_(True)
+        donate_lbl.setSelectable_(True)
+        donate_card.addSubview_(donate_lbl)
 
         return view
 
