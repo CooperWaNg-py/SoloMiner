@@ -77,13 +77,7 @@ from .config import (
     ping_pool,
     PoolConfig,
     DEFAULT_POOLS,
-    ALGORITHMS,
     APP_VERSION,
-    COINS,
-    COIN_REGISTRY,
-    coin_to_algorithm,
-    coin_to_ticker,
-    coin_address_hint,
 )
 from .engine import MiningEngine
 
@@ -568,7 +562,6 @@ class PopoverViewController(NSViewController):
         stats_info = [
             ("Pool", "_pool_val", "---"),
             ("Network", "_network_val", "Mainnet"),
-            ("Coin", "_coin_val", "Bitcoin"),
             ("Algorithm", "_algo_val", "SHA-256d"),
             ("Shares", "_shares_val", "0/0"),
             ("Difficulty", "_diff_val", "---"),
@@ -727,11 +720,8 @@ class PopoverViewController(NSViewController):
                 self._mode_val.setStringValue_(self._config.performance_mode)
             if hasattr(self, "_network_val") and self._network_val:
                 self._network_val.setStringValue_(self._config.network)
-            if hasattr(self, "_coin_val") and self._coin_val:
-                ticker = coin_to_ticker(self._config.coin)
-                self._coin_val.setStringValue_(f"{self._config.coin} ({ticker})")
             if hasattr(self, "_algo_val") and self._algo_val:
-                self._algo_val.setStringValue_(self._config.active_algorithm)
+                self._algo_val.setStringValue_("SHA-256d")
             if self._config.pools and hasattr(self, "_pool_val") and self._pool_val:
                 active = self._config.pools[self._config.active_pool_index]
                 self._pool_val.setStringValue_(active.get("name", "---"))
@@ -968,13 +958,9 @@ class PopoverViewController(NSViewController):
 
         if not self._config:
             return
-        # Get per-coin address
-        coin = self._config.coin
-        address = self._config.get_address_for_coin(coin)
+        address = self._config.bitcoin_address
         if not address:
-            append_log(
-                f"ERROR: No address configured for {coin}. Open Settings > Mining."
-            )
+            append_log("ERROR: No Bitcoin address configured. Open Settings > Mining.")
             self._auth_label.setStringValue_("No Address")
             self._auth_label.setTextColor_(ACCENT_RED)
             return
@@ -989,8 +975,7 @@ class PopoverViewController(NSViewController):
         host = active.get("host", "public-pool.io")
         port = active.get("port", 3333)
 
-        # Apply thread config and coin/algorithm from settings
-        self._engine.set_coin(self._config.coin)
+        # Apply thread config
         self._engine.set_thread_config(
             self._config.gpu_threads, self._config.cpu_threads
         )
@@ -1008,14 +993,9 @@ class PopoverViewController(NSViewController):
         self._pool_val.setStringValue_(active.get("name", f"{host}:{port}"))
         self._network_val.setStringValue_(self._config.network)
         self._mode_val.setStringValue_(self._config.performance_mode)
-        if hasattr(self, "_coin_val") and self._coin_val:
-            ticker = coin_to_ticker(coin)
-            self._coin_val.setStringValue_(f"{coin} ({ticker})")
         if hasattr(self, "_algo_val") and self._algo_val:
-            self._algo_val.setStringValue_(self._config.active_algorithm)
-        append_log(
-            f"Mining started -> {host}:{port} ({coin} / {self._config.active_algorithm})"
-        )
+            self._algo_val.setStringValue_("SHA-256d")
+        append_log(f"Mining started -> {host}:{port} (Bitcoin / SHA-256d)")
 
     def _stop_mining(self):
         if self._engine:
@@ -1334,8 +1314,6 @@ class PopoverViewController(NSViewController):
             name = pool.get("name", "Unknown")
             host = pool.get("host", "")
             port = pool.get("port", 3333)
-            pool_coin = pool.get("coin", "Bitcoin")
-            pool_algo = coin_to_algorithm(pool_coin)
 
             name_lbl = make_label(name, size=11, bold=True)
             name_lbl.setFrame_(NSMakeRect(34, 32, w - pad * 2 - 155, 16))
@@ -1347,9 +1325,8 @@ class PopoverViewController(NSViewController):
             detail_lbl.setTranslatesAutoresizingMaskIntoConstraints_(True)
             card.addSubview_(detail_lbl)
 
-            # Coin + algorithm badge
-            badge_text = f"{pool_coin} ({pool_algo})"
-            algo_lbl = make_label(badge_text, size=8, color=ACCENT_BLUE, bold=True)
+            # Algorithm badge (always SHA-256d)
+            algo_lbl = make_label("SHA-256d", size=8, color=ACCENT_BLUE, bold=True)
             algo_lbl.setFrame_(NSMakeRect(34, 3, 120, 13))
             algo_lbl.setTranslatesAutoresizingMaskIntoConstraints_(True)
             card.addSubview_(algo_lbl)
@@ -1448,22 +1425,9 @@ class PopoverViewController(NSViewController):
         self._new_pool_port.setFont_(NSFont.systemFontOfSize_(10))
         card_add.addSubview_(self._new_pool_port)
 
-        # Row 2: Coin selector + Add button
-        lbl_coin = make_label("Coin", size=8, color=TEXT_SECONDARY)
-        lbl_coin.setFrame_(NSMakeRect(6, 1, 30, 12))
-        lbl_coin.setTranslatesAutoresizingMaskIntoConstraints_(True)
-        card_add.addSubview_(lbl_coin)
-
-        self._new_pool_coin = NSPopUpButton.alloc().initWithFrame_(
-            NSMakeRect(36, -1, 90, 18)
-        )
-        for c in COINS:
-            self._new_pool_coin.addItemWithTitle_(c)
-        self._new_pool_coin.setFont_(NSFont.systemFontOfSize_(9))
-        card_add.addSubview_(self._new_pool_coin)
-
+        # Row 2: Add button
         add_btn = NSButton.alloc().initWithFrame_(
-            NSMakeRect(int(cw * 0.78), 18, int(cw * 0.20), 20)
+            NSMakeRect(int(cw * 0.78), 0, int(cw * 0.20), 20)
         )
         add_btn.setTitle_("Add")
         add_btn.setBezelStyle_(NSRoundedBezelStyle)
@@ -1488,46 +1452,27 @@ class PopoverViewController(NSViewController):
 
         return view
 
-    # ── Mining tab (with coin selection, thread/core selection) ──
+    # ── Mining tab (simplified to Bitcoin-only) ──
     def _build_settings_mining(self, w, h):
         view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, w, h))
         pad = 18
         y = h - 10
 
-        # Coin Selection (replaces Algorithm Selection)
+        # Coin/Algorithm display (read-only)
         y -= 22
         header0 = make_label("Cryptocurrency", size=13, bold=True)
         header0.setFrame_(NSMakeRect(pad, y, 200, 20))
         header0.setTranslatesAutoresizingMaskIntoConstraints_(True)
         view.addSubview_(header0)
 
-        y -= 38
-        card0 = _make_inline_card(pad, y, w - pad * 2, 32)
+        y -= 32
+        card0 = _make_inline_card(pad, y, w - pad * 2, 26)
         view.addSubview_(card0)
 
-        self._coin_seg = NSSegmentedControl.alloc().initWithFrame_(
-            NSMakeRect(6, 4, w - pad * 2 - 12, 24)
-        )
-        self._coin_seg.setSegmentCount_(len(COINS))
-        for i, coin_name in enumerate(COINS):
-            ticker = coin_to_ticker(coin_name)
-            self._coin_seg.setLabel_forSegment_(ticker, i)
-        coin_idx = COINS.index(self._config.coin) if self._config.coin in COINS else 0
-        self._coin_seg.setSelectedSegment_(coin_idx)
-        self._coin_seg.setTarget_(self)
-        self._coin_seg.setAction_(objc.selector(self.coinChanged_, signature=b"v@:@"))
-        card0.addSubview_(self._coin_seg)
-
-        # Algorithm hint (derived from coin, read-only)
-        y -= 18
-        self._algo_hint_label = make_label(
-            f"{self._config.coin} -- {self._config.active_algorithm}",
-            size=9,
-            color=TEXT_SECONDARY,
-        )
-        self._algo_hint_label.setFrame_(NSMakeRect(pad + 4, y, w - pad * 2, 14))
-        self._algo_hint_label.setTranslatesAutoresizingMaskIntoConstraints_(True)
-        view.addSubview_(self._algo_hint_label)
+        coin_lbl = make_label("Bitcoin (BTC) -- SHA-256d", size=11, bold=True)
+        coin_lbl.setFrame_(NSMakeRect(12, 4, w - pad * 2 - 24, 18))
+        coin_lbl.setTranslatesAutoresizingMaskIntoConstraints_(True)
+        card0.addSubview_(coin_lbl)
 
         # Network
         y -= 20
@@ -1605,12 +1550,8 @@ class PopoverViewController(NSViewController):
         self._address_field = NSTextField.alloc().initWithFrame_(
             NSMakeRect(78, 22, w - pad * 2 - 94, 18)
         )
-        # Load per-coin address
-        current_coin = self._config.coin
-        self._address_field.setStringValue_(
-            self._config.get_address_for_coin(current_coin)
-        )
-        self._address_field.setPlaceholderString_(coin_address_hint(current_coin))
+        self._address_field.setStringValue_(self._config.bitcoin_address)
+        self._address_field.setPlaceholderString_("bc1q...")
         self._address_field.setFocusRingType_(NSFocusRingTypeNone)
         self._address_field.setFont_(
             NSFont.monospacedSystemFontOfSize_weight_(10, NSFontWeightRegular)
@@ -1618,7 +1559,7 @@ class PopoverViewController(NSViewController):
         card3.addSubview_(self._address_field)
 
         self._addr_coin_hint = make_label(
-            f"{current_coin} ({coin_to_ticker(current_coin)}) address",
+            "Bitcoin (BTC) address",
             size=9,
             color=TEXT_SECONDARY,
         )
@@ -1714,11 +1655,21 @@ class PopoverViewController(NSViewController):
         ver.setTranslatesAutoresizingMaskIntoConstraints_(True)
         view.addSubview_(ver)
 
+        y -= 16
+        author = make_label(
+            "by Cooper Wang",
+            size=11,
+            color=TEXT_SECONDARY,
+            alignment=NSTextAlignmentCenter,
+        )
+        author.setFrame_(NSMakeRect(0, y, w, 16))
+        author.setTranslatesAutoresizingMaskIntoConstraints_(True)
+        view.addSubview_(author)
+
         y -= 50
         desc = NSTextField.wrappingLabelWithString_(
-            "A lightweight, native macOS application for solo mining. "
-            "Uses Apple Metal for GPU-accelerated hashing across "
-            "SHA-256d, Scrypt, and RandomX algorithms. "
+            "A lightweight, native macOS menu bar application for solo Bitcoin mining. "
+            "Uses Apple Metal for GPU-accelerated SHA-256d hashing. "
             "Connects to pools via the Stratum v1 protocol."
         )
         desc.setFont_(NSFont.systemFontOfSize_weight_(11, NSFontWeightRegular))
@@ -1736,8 +1687,8 @@ class PopoverViewController(NSViewController):
 
         items = [
             ("Framework", "PyObjC + AppKit"),
-            ("GPU", "Apple Metal (all algos)"),
-            ("Algorithms", "SHA-256d, Scrypt, RandomX"),
+            ("GPU", "Apple Metal"),
+            ("Algorithm", "SHA-256d (Bitcoin)"),
             ("Protocol", "Stratum v1"),
             ("Platform", "macOS (ARM + Intel)"),
         ]
@@ -1859,14 +1810,12 @@ class PopoverViewController(NSViewController):
             port = int(port_str) if port_str else 3333
         except ValueError:
             port = 3333
-        coin = str(self._new_pool_coin.titleOfSelectedItem())
         self._config.pools.append(
             {
                 "name": name,
                 "host": host,
                 "port": port,
                 "enabled": True,
-                "coin": coin,
             }
         )
         save_config(self._config)
@@ -1888,33 +1837,6 @@ class PopoverViewController(NSViewController):
             append_log("Pool configuration saved")
 
     @objc.typedSelector(b"v@:@")
-    def coinChanged_(self, sender):
-        """When coin selector changes, save current address and load new one."""
-        new_coin = COINS[sender.selectedSegment()]
-
-        # Save current address for the old coin
-        if hasattr(self, "_address_field") and self._address_field and self._config:
-            old_coin = self._config.coin
-            old_addr = str(self._address_field.stringValue())
-            self._config.set_address_for_coin(old_coin, old_addr)
-
-        # Load address for the new coin
-        if self._config:
-            self._config.coin = new_coin
-            self._config.algorithm = coin_to_algorithm(new_coin)
-            new_addr = self._config.get_address_for_coin(new_coin)
-            if hasattr(self, "_address_field") and self._address_field:
-                self._address_field.setStringValue_(new_addr)
-                self._address_field.setPlaceholderString_(coin_address_hint(new_coin))
-            if hasattr(self, "_addr_coin_hint") and self._addr_coin_hint:
-                ticker = coin_to_ticker(new_coin)
-                self._addr_coin_hint.setStringValue_(f"{new_coin} ({ticker}) address")
-            if hasattr(self, "_algo_hint_label") and self._algo_hint_label:
-                self._algo_hint_label.setStringValue_(
-                    f"{new_coin} -- {self._config.active_algorithm}"
-                )
-
-    @objc.typedSelector(b"v@:@")
     def saveMiningConfig_(self, sender):
         if not self._config:
             return
@@ -1923,17 +1845,9 @@ class PopoverViewController(NSViewController):
         self._config.network = networks[idx]
         self._config.worker_name = str(self._worker_field.stringValue())
 
-        # Coin (algorithm derived from coin)
-        coin_idx = self._coin_seg.selectedSegment()
-        self._config.coin = COINS[coin_idx]
-        self._config.algorithm = coin_to_algorithm(self._config.coin)
-
-        # Save per-coin address
+        # Save Bitcoin address
         current_addr = str(self._address_field.stringValue())
-        self._config.set_address_for_coin(self._config.coin, current_addr)
-        # Also keep legacy field in sync for Bitcoin
-        if self._config.coin == "Bitcoin":
-            self._config.bitcoin_address = current_addr
+        self._config.bitcoin_address = current_addr
 
         # Thread config
         gpu_idx = self._gpu_threads_popup.indexOfSelectedItem()
@@ -1943,8 +1857,7 @@ class PopoverViewController(NSViewController):
 
         save_config(self._config)
         append_log(
-            f"Configuration saved: coin={self._config.coin}, "
-            f"algo={self._config.active_algorithm}, "
+            f"Configuration saved: "
             f"network={self._config.network}, "
             f"address={current_addr[:12]}..., "
             f"gpu_threads={self._config.gpu_threads or 'auto'}, "

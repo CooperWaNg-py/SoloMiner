@@ -24,8 +24,6 @@ from typing import Optional, Callable
 from .stratum import StratumClient, StratumJob
 from .metal_miner import (
     MetalMiner,
-    ScryptMiner,
-    RandomXMiner,
     create_miner,
     build_block_header,
     compute_merkle_root,
@@ -36,7 +34,6 @@ from .config import (
     load_stats,
     save_stats,
     write_crash_log,
-    coin_to_algorithm,
 )
 
 logger = logging.getLogger("solominer.engine")
@@ -44,8 +41,6 @@ logger = logging.getLogger("solominer.engine")
 # How many nonces per GPU dispatch
 GPU_BATCH_SIZE = 1 << 22  # ~4M per batch
 CPU_BATCH_SIZE = 1 << 16  # ~65K per batch for CPU fallback
-SCRYPT_BATCH_SIZE = 1 << 3  # ~8 per batch (Scrypt is ~140ms/hash)
-RANDOMX_BATCH_SIZE = 1 << 6  # ~64 per batch (RandomX is ~17ms/hash)
 
 # How often to persist stats to disk (seconds)
 STATS_PERSIST_INTERVAL = 30
@@ -91,7 +86,6 @@ class MiningEngine:
         # Thread/core configuration
         self._gpu_threads = 0  # 0 = auto
         self._cpu_threads = 0  # 0 = auto
-        self._algorithm = "SHA-256d"  # SHA-256d, Scrypt, RandomX
 
         # Stats (accessed from both mining thread and main thread via timer)
         self._stats_lock = threading.Lock()
@@ -183,15 +177,12 @@ class MiningEngine:
         )
 
     def set_algorithm(self, algorithm: str):
-        """Set the mining algorithm (SHA-256d, Scrypt, RandomX)."""
-        self._algorithm = algorithm
-        append_log(f"[ENGINE] Algorithm: {algorithm}")
+        """Set the mining algorithm. Only SHA-256d is supported."""
+        append_log(f"[ENGINE] Algorithm: SHA-256d")
 
     def set_coin(self, coin: str):
-        """Set the mining coin. Algorithm is derived automatically."""
-        algo = coin_to_algorithm(coin)
-        self._algorithm = algo
-        append_log(f"[ENGINE] Coin: {coin} (algorithm: {algo})")
+        """Set the mining coin. Only Bitcoin (SHA-256d) is supported."""
+        append_log(f"[ENGINE] Coin: Bitcoin (algorithm: SHA-256d)")
 
     def start(
         self, host: str, port: int, address: str, worker: str, network: str = "Mainnet"
@@ -219,10 +210,10 @@ class MiningEngine:
         append_log(f"[ENGINE] Starting miner -> {host}:{port} ({network})")
         append_log(f"[ENGINE] Worker: {address}.{worker}")
 
-        # Initialize miner for the selected algorithm
-        self.miner = create_miner(self._algorithm)
+        # Initialize miner (SHA-256d only)
+        self.miner = create_miner()
         gpu_info = (
-            f"Algorithm: {self._algorithm}, "
+            f"Algorithm: SHA-256d, "
             f"GPU: {self.miner.gpu_name}, "
             f"Metal: {'Yes' if self.miner.use_gpu else 'No (CPU)'}"
         )
@@ -532,15 +523,7 @@ class MiningEngine:
                 batch_size = (
                     GPU_BATCH_SIZE
                     if self.miner and self.miner.use_gpu
-                    else (
-                        SCRYPT_BATCH_SIZE
-                        if self._algorithm == "Scrypt"
-                        else (
-                            RANDOMX_BATCH_SIZE
-                            if self._algorithm == "RandomX"
-                            else CPU_BATCH_SIZE
-                        )
-                    )
+                    else CPU_BATCH_SIZE
                 )
 
                 # Mine batch against share target

@@ -33,13 +33,7 @@ from .config import (
     ping_pool,
     PoolConfig,
     DEFAULT_POOLS,
-    ALGORITHMS,
     APP_VERSION,
-    COINS,
-    COIN_REGISTRY,
-    coin_to_algorithm,
-    coin_to_ticker,
-    coin_address_hint,
 )
 from .engine import MiningEngine
 
@@ -351,8 +345,7 @@ class SoloMinerTUI:
         rows = [
             ("Pool", self._get_pool_display()),
             ("Network", self._config.network),
-            ("Coin", f"{self._config.coin} ({coin_to_ticker(self._config.coin)})"),
-            ("Algorithm", self._config.active_algorithm),
+            ("Algorithm", "SHA-256d"),
             (
                 "Shares",
                 f"{eng.shares_accepted}/{eng.shares_accepted + eng.shares_rejected}"
@@ -512,16 +505,12 @@ class SoloMinerTUI:
     def _mining_fields(self) -> list:
         """Return list of (label, current_value, editable) for mining settings."""
         cfg = self._config
-        coin_display = f"{cfg.coin} ({coin_to_ticker(cfg.coin)})"
-        algo_display = cfg.active_algorithm
-        addr = cfg.get_address_for_coin(cfg.coin)
-        addr_display = addr if addr else f"(none - {coin_address_hint(cfg.coin)})"
+        addr = cfg.bitcoin_address
+        addr_display = addr if addr else "(none - bc1q...)"
         gpu_t = "Auto" if cfg.gpu_threads == 0 else str(cfg.gpu_threads)
         cpu_t = "Auto" if cfg.cpu_threads == 0 else str(cfg.cpu_threads)
-        perf_modes = ["Auto", "Full Speed", "Eco Mode"]
         return [
-            ("Coin", coin_display, True),
-            ("Algorithm", algo_display, False),
+            ("Algorithm", "SHA-256d (Bitcoin)", False),
             ("Network", cfg.network, True),
             ("Worker Name", cfg.worker_name, True),
             ("Address", addr_display, True),
@@ -538,12 +527,7 @@ class SoloMinerTUI:
         label = fields[self._sel_idx][0]
         cfg = self._config
 
-        if label == "Coin":
-            idx = COINS.index(cfg.coin) if cfg.coin in COINS else 0
-            idx = (idx + direction) % len(COINS)
-            cfg.coin = COINS[idx]
-            cfg.algorithm = coin_to_algorithm(cfg.coin)
-        elif label == "Network":
+        if label == "Network":
             nets = ["Mainnet", "Testnet3", "Testnet4", "Signet", "Regtest"]
             idx = nets.index(cfg.network) if cfg.network in nets else 0
             idx = (idx + direction) % len(nets)
@@ -579,7 +563,7 @@ class SoloMinerTUI:
             return
 
         # For cycle-able fields, cycle on Enter
-        if label in ("Coin", "Network", "GPU Threads", "CPU Threads", "Perf. Mode"):
+        if label in ("Network", "GPU Threads", "CPU Threads", "Perf. Mode"):
             self._cycle_mining_field(1)
             return
 
@@ -591,7 +575,7 @@ class SoloMinerTUI:
         elif label == "Address":
             self._input_mode = True
             self._input_field = label
-            self._input_buffer = self._config.get_address_for_coin(self._config.coin)
+            self._input_buffer = self._config.bitcoin_address
 
     def _finish_edit_mining_field(self):
         """Commit the current input buffer to the config."""
@@ -600,9 +584,7 @@ class SoloMinerTUI:
         if label == "Worker Name":
             self._config.worker_name = val
         elif label == "Address":
-            self._config.set_address_for_coin(self._config.coin, val)
-            if self._config.coin == "Bitcoin":
-                self._config.bitcoin_address = val
+            self._config.bitcoin_address = val
         self._input_mode = False
         self._input_field = ""
         self._input_buffer = ""
@@ -610,11 +592,7 @@ class SoloMinerTUI:
     def _save_mining_config(self):
         """Save mining settings to disk."""
         save_config(self._config)
-        append_log(
-            f"[TUI] Config saved: coin={self._config.coin}, "
-            f"algo={self._config.active_algorithm}, "
-            f"network={self._config.network}"
-        )
+        append_log(f"[TUI] Config saved: network={self._config.network}")
 
     # ── Settings > Pools ──
 
@@ -638,7 +616,7 @@ class SoloMinerTUI:
             win,
             y,
             cx,
-            "  # On Name                 Host              Coin       ",
+            "  # On Name                 Host                        ",
             curses.color_pair(C_DIM),
         )
         y += 1
@@ -653,8 +631,6 @@ class SoloMinerTUI:
             name = pool.get("name", "???")[:20]
             host = pool.get("host", "???")
             port = pool.get("port", 3333)
-            coin = pool.get("coin", "Bitcoin")
-            ticker = coin_to_ticker(coin)
 
             marker = ">" if is_sel else " "
             en_mark = "[x]" if enabled else "[ ]"
@@ -668,13 +644,13 @@ class SoloMinerTUI:
                 attr |= curses.A_BOLD
             _safe_addstr(win, y, cx, line, attr)
 
-            # Coin badge
+            # Active marker
             badge_x = cx + len(line) + 1
             _safe_addstr(
                 win,
                 y,
                 badge_x,
-                f"{ticker}{active_mark}",
+                f"BTC{active_mark}",
                 curses.color_pair(C_BLUE) | curses.A_BOLD,
             )
 
@@ -759,11 +735,12 @@ class SoloMinerTUI:
         )
         y += 1
         _safe_addstr(win, y, cx, f"Version {APP_VERSION}", curses.color_pair(C_DIM))
+        y += 1
+        _safe_addstr(win, y, cx, "by Cooper Wang", curses.color_pair(C_DIM))
         y += 2
         desc = (
-            "A lightweight, native macOS application for solo mining."
-            " Uses Apple Metal for GPU-accelerated hashing across"
-            " SHA-256d, Scrypt, and RandomX algorithms."
+            "A lightweight, native macOS menu bar application for solo Bitcoin mining."
+            " Uses Apple Metal for GPU-accelerated SHA-256d hashing."
             " Connects to pools via the Stratum v1 protocol."
         )
         # Word wrap
@@ -776,8 +753,8 @@ class SoloMinerTUI:
         y += 1
         info = [
             ("Framework", "PyObjC + AppKit / curses TUI"),
-            ("GPU", "Apple Metal (all algos)"),
-            ("Algorithms", "SHA-256d, Scrypt, RandomX"),
+            ("GPU", "Apple Metal"),
+            ("Algorithm", "SHA-256d (Bitcoin)"),
             ("Protocol", "Stratum v1"),
             ("Platform", "macOS (ARM + Intel)"),
         ]
@@ -1129,11 +1106,10 @@ class SoloMinerTUI:
             append_log("[TUI] Mining stopped")
         else:
             self._config = load_config()
-            coin = self._config.coin
-            address = self._config.get_address_for_coin(coin)
+            address = self._config.bitcoin_address
             if not address:
                 append_log(
-                    f"[TUI] ERROR: No address for {coin}. Configure in Settings > Mining."
+                    "[TUI] ERROR: No Bitcoin address. Configure in Settings > Mining."
                 )
                 return
 
@@ -1149,7 +1125,6 @@ class SoloMinerTUI:
             host = pool.get("host", "public-pool.io")
             port = pool.get("port", 3333)
 
-            self._engine.set_coin(coin)
             self._engine.set_thread_config(
                 self._config.gpu_threads, self._config.cpu_threads
             )
@@ -1157,9 +1132,7 @@ class SoloMinerTUI:
             self._engine.start(
                 host, port, address, self._config.worker_name, self._config.network
             )
-            append_log(
-                f"[TUI] Mining started -> {host}:{port} ({coin} / {self._config.active_algorithm})"
-            )
+            append_log(f"[TUI] Mining started -> {host}:{port} (Bitcoin / SHA-256d)")
 
     def _run_benchmark(self):
         if self._benchmarking or self._engine.is_running:
@@ -1265,21 +1238,16 @@ class SoloMinerTUI:
         except ValueError:
             port = 3333
 
-        # Coin selection
-        coin_str = self._prompt(f"Coin [{'/'.join(COINS)}]: ")
-        coin = coin_str if coin_str in COINS else "Bitcoin"
-
         self._config.pools.append(
             {
                 "name": name,
                 "host": host,
                 "port": port,
                 "enabled": True,
-                "coin": coin,
             }
         )
         save_config(self._config)
-        append_log(f"[TUI] Added pool: {name} ({host}:{port}, {coin})")
+        append_log(f"[TUI] Added pool: {name} ({host}:{port})")
 
     def _prompt(self, prompt_text: str) -> str:
         """Simple blocking text prompt at the bottom of the screen."""

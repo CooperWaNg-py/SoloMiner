@@ -16,41 +16,13 @@ STATS_FILE = os.path.join(CONFIG_DIR, "stats.json")
 CRASH_LOG_FILE = os.path.join(CONFIG_DIR, "crash.log")
 
 
-ALGORITHMS = ["SHA-256d", "Scrypt", "RandomX"]
+APP_VERSION = "1.3.0"
 
-APP_VERSION = "1.2.0"
-
-# ── Coin registry ──
-# Maps coin name -> { algorithm, ticker, address_hint }
-# The algorithm is determined by the coin, not the other way around.
-COIN_REGISTRY = {
-    "Bitcoin": {"algorithm": "SHA-256d", "ticker": "BTC", "address_hint": "bc1q..."},
-    "Litecoin": {"algorithm": "Scrypt", "ticker": "LTC", "address_hint": "ltc1q..."},
-    "Dogecoin": {"algorithm": "Scrypt", "ticker": "DOGE", "address_hint": "D..."},
-    "Monero": {"algorithm": "RandomX", "ticker": "XMR", "address_hint": "4..."},
-}
-
-COINS = list(COIN_REGISTRY.keys())  # ["Bitcoin", "Litecoin", "Dogecoin", "Monero"]
-
-
-def coin_to_algorithm(coin: str) -> str:
-    """Get the mining algorithm for a given coin."""
-    return COIN_REGISTRY.get(coin, {}).get("algorithm", "SHA-256d")
-
-
-def coin_to_ticker(coin: str) -> str:
-    """Get the ticker symbol for a given coin."""
-    return COIN_REGISTRY.get(coin, {}).get("ticker", "???")
-
-
-def coin_address_hint(coin: str) -> str:
-    """Get the address placeholder hint for a given coin."""
-    return COIN_REGISTRY.get(coin, {}).get("address_hint", "...")
-
-
-def algorithm_to_coins(algorithm: str) -> list:
-    """Get all coins that use a given algorithm."""
-    return [c for c, info in COIN_REGISTRY.items() if info["algorithm"] == algorithm]
+# Bitcoin is the only supported coin. Algorithm is always SHA-256d.
+ALGORITHM = "SHA-256d"
+COIN = "Bitcoin"
+TICKER = "BTC"
+ADDRESS_HINT = "bc1q..."
 
 
 @dataclass
@@ -59,19 +31,14 @@ class PoolConfig:
     host: str = "public-pool.io"
     port: int = 3333
     enabled: bool = True
-    coin: str = "Bitcoin"  # Coin name (determines algorithm)
-
-    @property
-    def algorithm(self) -> str:
-        return coin_to_algorithm(self.coin)
 
 
 DEFAULT_POOLS = [
-    PoolConfig("public-pool.io(3333)", "public-pool.io", 3333, True, "Bitcoin"),
-    PoolConfig("VKBIT SOLO", "eu.vkbit.com", 3555, True, "Bitcoin"),
-    PoolConfig("nerdminer.io", "pool.nerdminer.io", 3333, True, "Bitcoin"),
-    PoolConfig("CKPool Solo (EU)", "eusolo.ckpool.org", 3333, True, "Bitcoin"),
-    PoolConfig("CKPool Solo (US)", "solo.ckpool.org", 3333, False, "Bitcoin"),
+    PoolConfig("public-pool.io(3333)", "public-pool.io", 3333, True),
+    PoolConfig("VKBIT SOLO", "eu.vkbit.com", 3555, True),
+    PoolConfig("nerdminer.io", "pool.nerdminer.io", 3333, True),
+    PoolConfig("CKPool Solo (EU)", "eusolo.ckpool.org", 3333, True),
+    PoolConfig("CKPool Solo (US)", "solo.ckpool.org", 3333, False),
 ]
 
 
@@ -85,62 +52,18 @@ class MinerConfig:
     # Mining
     network: str = "Mainnet"  # Mainnet, Testnet3, Testnet4, Signet, Regtest
     worker_name: str = "SoloMiner"
-    bitcoin_address: str = ""  # Legacy single address (kept for migration)
-    coin: str = "Bitcoin"  # Selected cryptocurrency (determines algorithm)
-    algorithm: str = "SHA-256d"  # Derived from coin (kept for backward compat)
-
-    # Per-coin wallet addresses
-    # Each cryptocurrency has its own payout address
-    addresses: dict = field(
-        default_factory=lambda: {
-            "Bitcoin": "",
-            "Litecoin": "",
-            "Dogecoin": "",
-            "Monero": "",
-        }
-    )
+    bitcoin_address: str = ""
 
     # Performance
     performance_mode: str = "Full Speed"  # Auto, Full Speed, Eco Mode
     gpu_threads: int = 0  # 0 = auto (use max), 1-N = specific count
     cpu_threads: int = 0  # 0 = auto (use os.cpu_count()), 1-N = specific
 
-    # Pools (each pool now has a coin field)
+    # Pools
     pools: list = field(default_factory=lambda: [asdict(p) for p in DEFAULT_POOLS])
 
     # Active pool index
     active_pool_index: int = 0
-
-    @property
-    def active_algorithm(self) -> str:
-        """Get the mining algorithm based on the selected coin."""
-        return coin_to_algorithm(self.coin)
-
-    def get_address_for_coin(self, coin: str) -> str:
-        """Get the wallet address for a specific coin.
-        Falls back to the legacy bitcoin_address if per-coin not set."""
-        addr = self.addresses.get(coin, "")
-        if not addr and coin == "Bitcoin" and self.bitcoin_address:
-            return self.bitcoin_address
-        return addr
-
-    def set_address_for_coin(self, coin: str, address: str):
-        """Set the wallet address for a specific coin."""
-        self.addresses[coin] = address
-
-    # Legacy compat shims (old code may call these)
-    def get_address_for_algo(self, algo: str) -> str:
-        """Legacy: get address by algorithm. Maps to first coin using that algo."""
-        coins = algorithm_to_coins(algo)
-        if coins:
-            return self.get_address_for_coin(coins[0])
-        return ""
-
-    def set_address_for_algo(self, algo: str, address: str):
-        """Legacy: set address by algorithm. Maps to first coin using that algo."""
-        coins = algorithm_to_coins(algo)
-        if coins:
-            self.set_address_for_coin(coins[0], address)
 
 
 def ensure_config_dir():
@@ -154,60 +77,23 @@ def load_config() -> MinerConfig:
             with open(CONFIG_FILE, "r") as f:
                 data = json.load(f)
 
-            # ── Migration v1.1 -> v1.2: per-algorithm -> per-coin addresses ──
-            addrs = data.get("addresses", {})
-            old_addr = data.get("bitcoin_address", "")
+            # ── Migration from older multi-coin format ──
+            # Pull Bitcoin address from old per-coin addresses dict if present
+            if "addresses" in data:
+                addrs = data.pop("addresses", {})
+                if "Bitcoin" in addrs and addrs["Bitcoin"]:
+                    data.setdefault("bitcoin_address", addrs["Bitcoin"])
+                # Also check old per-algorithm format
+                if "SHA-256d" in addrs and addrs["SHA-256d"]:
+                    data.setdefault("bitcoin_address", addrs["SHA-256d"])
 
-            # Detect old per-algorithm format (keys are algorithm names)
-            is_old_format = any(k in addrs for k in ALGORITHMS)
-            is_new_format = any(k in addrs for k in COINS)
+            # Remove stale fields from old multi-coin config
+            for stale_key in ("coin", "algorithm", "addresses"):
+                data.pop(stale_key, None)
 
-            if is_old_format and not is_new_format:
-                # Migrate: SHA-256d -> Bitcoin, Scrypt -> Litecoin, RandomX -> Monero
-                new_addrs = {}
-                new_addrs["Bitcoin"] = addrs.get("SHA-256d", old_addr or "")
-                new_addrs["Litecoin"] = addrs.get("Scrypt", "")
-                new_addrs["Dogecoin"] = ""  # New coin, no old address
-                new_addrs["Monero"] = addrs.get("RandomX", "")
-                data["addresses"] = new_addrs
-            elif "addresses" not in data:
-                data["addresses"] = {
-                    "Bitcoin": old_addr,
-                    "Litecoin": "",
-                    "Dogecoin": "",
-                    "Monero": "",
-                }
-
-            # Ensure all coins have entries
-            addrs = data["addresses"]
-            for coin_name in COINS:
-                if coin_name not in addrs:
-                    addrs[coin_name] = ""
-
-            # ── Migration: algorithm field -> coin field ──
-            if "coin" not in data:
-                old_algo = data.get("algorithm", "SHA-256d")
-                # Map old algorithm to first matching coin
-                algo_to_coin = {
-                    "SHA-256d": "Bitcoin",
-                    "Scrypt": "Litecoin",
-                    "RandomX": "Monero",
-                }
-                data["coin"] = algo_to_coin.get(old_algo, "Bitcoin")
-            # Keep algorithm in sync with coin
-            data["algorithm"] = coin_to_algorithm(data.get("coin", "Bitcoin"))
-
-            # ── Migration: pool algorithm field -> coin field ──
+            # Clean pool dicts: remove stale coin/algorithm keys
             for pool in data.get("pools", []):
-                if "coin" not in pool:
-                    old_algo = pool.pop("algorithm", "SHA-256d")
-                    algo_to_coin = {
-                        "SHA-256d": "Bitcoin",
-                        "Scrypt": "Litecoin",
-                        "RandomX": "Monero",
-                    }
-                    pool["coin"] = algo_to_coin.get(old_algo, "Bitcoin")
-                # Remove stale algorithm key from pool dicts (PoolConfig has it as property now)
+                pool.pop("coin", None)
                 pool.pop("algorithm", None)
 
             # Remove any keys not in MinerConfig fields to avoid __init__ errors
