@@ -1,0 +1,110 @@
+name: Build SoloMiner App
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  check-build-needed:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if this is every 4th commit
+        id: check
+        run: |
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          echo "Total commits on main: $COMMIT_COUNT"
+          REMAINDER=$((COMMIT_COUNT % 4))
+          echo "Remainder: $REMAINDER"
+          if [ "$REMAINDER" -eq "0" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "BUILD TRIGGERED - commit #$COMMIT_COUNT is divisible by 4"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping build - $((4 - REMAINDER)) more commit(s) until next build"
+          fi
+
+  build:
+    needs: check-build-needed
+    if: needs.check-build-needed.outputs.should_build == 'true'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependancies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Verify imports work
+        run: |
+          python -c "from solominer.config import APP_VERSION; print(f'SoloMiner v{APP_VERSION}')"
+          python -c "from solominer.metal_miner import MetalMiner, create_miner; print('metal_miner OK')"
+          python -c "from solominer.engine import MiningEngine; print('engine OK')"
+
+      - name: Build .app with PyInstaller
+        run: |
+          pyinstaller SoloMiner.spec
+          ls -la dist/
+          ls -la dist/SoloMiner.app/Contents/ || true
+
+      - name: Verify app bundle
+        run: |
+          test -d dist/SoloMiner.app || (echo "App bundle not found!" && exit 1)
+          plutil -p dist/SoloMiner.app/Contents/Info.plist
+          echo "App bundle size:"
+          du -sh dist/SoloMiner.app
+
+      - name: Zip app bundle
+        run: |
+          cd dist
+          zip -r -y SoloMiner-macos.zip SoloMiner.app
+          ls -lh SoloMiner-macos.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoloMiner-macos
+          path: dist/SoloMiner-macos.zip
+          retention-days: 30
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(python -c "from solominer.config import APP_VERSION; print(APP_VERSION)")
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}-build${COMMIT_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "name=SoloMiner v${VERSION} (build #${COMMIT_COUNT})" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.name }}
+          body: |
+            Automated build from commit ${{ github.sha }}
+
+            **Download the .zip**, extract it, and drag `SoloMiner.app` to your Applications folder.
+
+            > macOS might show a security warning on first launch since its not signed.
+            > Right-click the app and select Open, then click Open again to bypass it.
+
+            Built on macOS 14 with Python 3.12.
+          files: dist/SoloMiner-macos.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoloMiner - Solo Bitcoin Mining for Mac</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* -- hero -- */
+        .hero {
+            min-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            position: relative;
+            background: radial-gradient(ellipse at 50% 30%, rgba(0,122,255,0.08) 0%, transparent 60%);
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #fff 0%, #a0a0a5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero .tagline {
+            font-size: 1.25rem;
+            color: #888;
+            max-width: 520px;
+            margin-bottom: 2rem;
+        }
+
+        .hero .version-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-bottom: 1.5rem;
+        }
+
+        .cta-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 28px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #007aff;
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: #0066d6;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.08);
+            color: #ccc;
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.12);
+        }
+
+        /* -- sections -- */
+        section {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 4rem 1.5rem;
+        }
+
+        section h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+
+        section p {
+            color: #999;
+            margin-bottom: 1rem;
+            font-size: 1.05rem;
+        }
+
+        /* -- feature cards -- */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-top: 2rem;
+        }
+
+        .feature-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 14px;
+            padding: 24px;
+            transition: border-color 0.2s;
+        }
+        .feature-card:hover {
+            border-color: rgba(0,122,255,0.3);
+        }
+
+        .feature-card h3 {
+            font-size: 1rem;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+
+        .feature-card p {
+            font-size: 0.9rem;
+            color: #777;
+            margin-bottom: 0;
+        }
+
+        /* -- code block -- */
+        .code-block {
+            background: #141416;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 10px;
+            padding: 20px 24px;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            color: #c8c8cd;
+            overflow-x: auto;
+            margin: 1rem 0;
+            line-height: 1.7;
+        }
+
+        .code-block .comment { color: #555; }
+        .code-block .cmd { color: #30d158; }
+
+        /* -- how it works -- */
+        .steps {
+            counter-reset: step;
+            margin-top: 1.5rem;
+        }
+
+        .step {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 1.5rem;
+            align-items: flex-start;
+        }
+
+        .step-num {
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(0,122,255,0.15);
+            color: #007aff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .step-content h3 {
+            color: #ddd;
+            font-size: 1rem;
+            margin-bottom: 2px;
+        }
+
+        .step-content p {
+            font-size: 0.92rem;
+            color: #777;
+            margin: 0;
+        }
+
+        /* -- faq -- */
+        .faq-item {
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding: 1.2rem 0;
+        }
+
+        .faq-item h3 {
+            color: #ccc;
+            font-size: 1rem;
+            margin-bottom: 6px;
+        }
+
+        .faq-item p {
+            color: #777;
+            font-size: 0.93rem;
+            margin: 0;
+        }
+
+        /* -- footer -- */
+        footer {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #555;
+            font-size: 0.85rem;
+            border-top: 1px solid rgba(255,255,255,0.04);
+        }
+
+        footer a {
+            color: #666;
+            text-decoration: none;
+        }
+        footer a:hover {
+            color: #999;
+        }
+
+        /* -- small screens -- */
+        @media (max-width: 600px) {
+            .hero h1 { font-size: 2.4rem; }
+            .hero .tagline { font-size: 1.05rem; }
+            section h2 { font-size: 1.5rem; }
+            .features-grid { grid-template-columns: 1fr; }
+        }
+
+        /* dumb little glow thing behind the title */
+        .glow {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0,122,255,0.12) 0%, transparent 70%);
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
+            50% { opacity: 1; transform: translateX(-50%) scale(1.15); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- hero -->
+<div class="hero">
+    <div class="glow"></div>
+    <span class="version-badge">v1.3.0 &mdash; macOS only</span>
+    <h1>SoloMiner</h1>
+    <p class="tagline">A lightweight menu bar app for solo mining Bitcoin on your Mac. GPU accelerated with Apple Metal.</p>
+    <div class="cta-row">
+        <a href="https://github.com/CooperWaNg-py/SoloMiner/releases/latest" class="btn btn-primary">Download Latest</a>
+        <a href="https://github.com/CooperWaNg-py/SoloMiner" class="btn btn-secondary">View on Github</a>
+    </div>
+</div>
+
+<!-- what is this -->
+<section>
+    <h2>What is this?</h2>
+    <p>SoloMiner is a little hobby project I built to try solo mining Bitcoin from my MacBook. It sits in your menu bar, connects to a mining pool over Stratum v1, and throws SHA-256d hashes at the network using your GPU.</p>
+    <p>Will you actualy find a block? Almost certianly not. The odds are something like 1 in a quadrillion per block with consumer hardware. But its fun to try, and if you somehow do hit one, the entire block reward (~3.125 BTC) goes to you. No pool fees, no splitting.</p>
+    <p>I mainly built this to learn about how Bitcoin mining works under the hood. Figured I'd share it incase anyone else wants to mess around with it.</p>
+</section>
+
+<!-- features -->
+<section>
+    <h2>Features</h2>
+    <div class="features-grid">
+        <div class="feature-card">
+            <h3>Menu Bar App</h3>
+            <p>Lives in your menu bar. No dock icon, dosent get in the way. Click to open a popover dashboard with live stats.</p>
+        </div>
+        <div class="feature-card">
+            <h3>Metal GPU Mining</h3>
+            <p>SHA-256d compute shader runs on your Apple GPU. Gets around ~69 MH/s on an M2 Pro. Not great, not terrible.</p>
+        </div>
+        <div class="feature-card">
+            <h3>Terminal UI</h3>
+            <p>Full curses-based TUI with the same features as the GUI. Run with <code>--tui</code> flag. Works over SSH too.</p>
+        </div>
+        <div class="feature-card">
+            <h3>Auto Everything</h3>
+            <p>Auto-reconnects on disconnect, auto-tunes difficulty based on your hashrate, auto-saves stats to disk.</p>
+        </div>
+        <div class="feature-card">
+            <h3>Built-in Pools</h3>
+            <p>Ships with 5 solo mining pools preconfigured. Or add your own. Has a ping button to check latency.</p>
+        </div>
+        <div class="feature-card">
+            <h3>CLI Mode</h3>
+            <p>Headless mining from the command line. Good for running in tmux on a mac mini or whatever.</p>
+        </div>
+    </div>
+</section>
+
+<!-- getting started -->
+<section>
+    <h2>Getting Started</h2>
+    <p>You need a Mac running macOS 12 or later and Python 3.10+. Apple Silicon recomended but Intel works too (slower).</p>
+
+    <div class="code-block">
+        <span class="comment"># clone it</span><br>
+        <span class="cmd">git clone https://github.com/CooperWaNg-py/SoloMiner.git</span><br>
+        <span class="cmd">cd SoloMiner</span><br>
+        <br>
+        <span class="comment"># install deps</span><br>
+        <span class="cmd">pip3 install -r requirements.txt</span><br>
+        <br>
+        <span class="comment"># run the gui</span><br>
+        <span class="cmd">python3 main.py</span><br>
+        <br>
+        <span class="comment"># or the terminal ui</span><br>
+        <span class="cmd">python3 main.py --tui</span><br>
+        <br>
+        <span class="comment"># or just the cli</span><br>
+        <span class="cmd">python3 cli.py --address bc1qYOUR_ADDRESS_HERE</span>
+    </div>
+
+    <p>Then go to Settings, enter your Bitcoin address, pick a pool, and hit Start. Thats pretty much it.</p>
+</section>
+
+<!-- how it works -->
+<section>
+    <h2>How It Works</h2>
+    <p>If your curious about whats happening under the hood:</p>
+    <div class="steps">
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+                <h3>Connect to pool</h3>
+                <p>SoloMiner connects to a Bitcoin mining pool using the Stratum v1 protocol. The pool sends block templates (jobs) containing the data you need to hash.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+                <h3>Hash on GPU</h3>
+                <p>Each job is an 80-byte block header. The Metal compute shader tries millions of different nonce values, computing SHA256(SHA256(header)) for each one. About 4 million per batch.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+                <h3>Submit shares</h3>
+                <p>When a hash meets the pools difficulty target, its submitted as a "share". The engine auto-tunes difficulty to target roughly 1 share every 20 seconds.</p>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+                <h3>Hope for the best</h3>
+                <p>If a hash also meets the actual Bitcoin network difficulty (astronomicaly harder), you've found a block. You win the block reward. This basically never happens with consumer GPUs but hey, someone has to be first right?</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- building the app -->
+<section>
+    <h2>Building the .app</h2>
+    <p>If you want a standalone .app you can put in your Applications folder:</p>
+
+    <div class="code-block">
+        <span class="comment"># install pyinstaller</span><br>
+        <span class="cmd">pip3 install pyinstaller</span><br>
+        <br>
+        <span class="comment"># build it (uses the included spec file)</span><br>
+        <span class="cmd">pyinstaller SoloMiner.spec</span><br>
+        <br>
+        <span class="comment"># the app ends up in dist/</span><br>
+        <span class="cmd">open dist/SoloMiner.app</span>
+    </div>
+
+    <p>There's also a <code>setup.py</code> for py2app if you prefer that. Check the README for more details. Fair warning - PyObjC bundling can be finicky depending on your Python version. Running with <code>python3 main.py</code> is the most reliable method.</p>
+    <p>Automated builds run every 4 commits and get posted to the <a href="https://github.com/CooperWaNg-py/SoloMiner/releases" style="color: #007aff;">Releases page</a>.</p>
+</section>
+
+<!-- faq -->
+<section>
+    <h2>FAQ (sorta)</h2>
+    <div class="faq-item">
+        <h3>Will I actually mine a Bitcoin block?</h3>
+        <p>Realistically no. Current Bitcoin network hashrate is around 800 EH/s. Your M2 does maybe 70 MH/s. Thats like entering a foot race against a fighter jet. But the lottery ticket is free to play so why not.</p>
+    </div>
+    <div class="faq-item">
+        <h3>Does this work on Windows / Linux?</h3>
+        <p>No, its macOS only. It uses Apple Metal for GPU compute and PyObjC/AppKit for the UI. Those are Mac-only frameworks. If your on Linux you probaly want cgminer or something like that.</p>
+    </div>
+    <div class="faq-item">
+        <h3>Is this safe to use?</h3>
+        <p>The code is open source, you can read every line. It only connects to the pool you configure, only sends mining shares, and stores config locally at <code>~/Library/Application Support/SoloMiner/</code>. It dosent phone home or anything weird.</p>
+    </div>
+    <div class="faq-item">
+        <h3>Why does it use so much GPU?</h3>
+        <p>Because its mining lol. Thats literally what mining is - doing as many hashes as possible as fast as possible. If you want it to chill a bit, switch to "Eco Mode" in the performance settings.</p>
+    </div>
+    <div class="faq-item">
+        <h3>Why solo mining instead of a regular pool?</h3>
+        <p>Regular pool mining with consumer hardware earns you like fractions of a penny per day after electricity. Not worth it. Solo mining earns you nothing 99.9999% of the time but has that tiny chance of a full block reward. Its more fun imo.</p>
+    </div>
+</section>
+
+<!-- footer -->
+<footer>
+    <p>Built by <strong>Cooper Wang</strong> &mdash; <a href="https://github.com/CooperWaNg-py/SoloMiner">github.com/CooperWaNg-py/SoloMiner</a></p>
+    <p style="margin-top: 6px;">MIT License. Not financial advice lol.</p>
+</footer>
+
+</body>
+</html>
