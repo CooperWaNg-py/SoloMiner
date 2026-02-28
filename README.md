@@ -219,8 +219,22 @@ Login item plist (when "Start at Login" is enabled):
 
 If you want to support the project:
 
+
+BTC:
 ```
 16JXoJL46hAZSjtWrKYyoMcur1VtwWAbeB
+```
+DOGE:
+```
+DFfW1YHab11KZU4FjHMTCnmen91Gs4WGYw
+```
+NANO:
+```
+nano_3gkue8bcocnxrsgxgoz3xyc54yzzkzainpq6pqxwezs6i3beis8b5oey46ft
+```
+XMR:
+```
+44VnXuvvoeJZCRTGferQeNVmcPVLjCqYiCKh1uk8n2fKbiG7Cz4EpEtMSyPNN6Ey4fTzMvyE38zoUabxF2hyrLJ47aKbYJ6
 ```
 
 ## License
