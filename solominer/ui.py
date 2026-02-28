@@ -13,6 +13,7 @@ import objc
 import os
 import math
 import time
+import queue
 import threading
 import warnings
 
@@ -50,7 +51,6 @@ from AppKit import (
     NSMenuItem,
     NSLineBreakByTruncatingTail,
     NSFocusRingTypeNone,
-    NSRoundedBezelStyle,
     NSFont,
     NSColor,
     NSFontWeightBold,
@@ -60,6 +60,13 @@ from AppKit import (
     NSImageView,
     NSImageScaleProportionallyUpOrDown,
 )
+
+# NSRoundedBezelStyle is deprecated on macOS 11+; use NSBezelStyleRounded.
+# Both have the numeric value 1. Try the modern name first.
+try:
+    from AppKit import NSBezelStyleRounded as _BezelStyle
+except ImportError:
+    _BezelStyle = 1  # fallback for older SDKs
 
 try:
     import Quartz
@@ -181,7 +188,7 @@ def make_separator_at(y, width, inset=15):
 def make_blue_button(title, frame):
     btn = NSButton.alloc().initWithFrame_(frame)
     btn.setTitle_(title)
-    btn.setBezelStyle_(NSRoundedBezelStyle)
+    btn.setBezelStyle_(_BezelStyle)
     btn.setWantsLayer_(True)
     if hasattr(btn, "setBezelColor_"):
         btn.setBezelColor_(ACCENT_BLUE)
@@ -308,14 +315,14 @@ def _build_log_attributed_string(log_text):
         elif (
             "ACCEPTED" in line_upper
             or "SUCCESSFUL" in line_upper
-            or "Authorized" in line
+            or "AUTHORIZED" in line_upper
         ):
             color = LOG_GREEN
             font = mono_font
-        elif "[STRATUM" in line:
+        elif "[STRATUM" in line_upper:
             color = LOG_BLUE
             font = mono_font
-        elif "[ENGINE" in line:
+        elif "[ENGINE" in line_upper:
             color = LOG_CYAN
             font = mono_font
         else:
@@ -371,6 +378,9 @@ class PopoverViewController(NSViewController):
         self._hashrate_card = None
         self._is_mining_animated = False
 
+        # Thread-safe queue for ping results
+        self._ping_queue = queue.Queue()
+
         return self
 
     def setEngine_(self, engine):
@@ -396,7 +406,7 @@ class PopoverViewController(NSViewController):
 
         self._nav_back_btn = NSButton.alloc().initWithFrame_(NSMakeRect(8, 4, 60, 28))
         self._nav_back_btn.setTitle_("Back")
-        self._nav_back_btn.setBezelStyle_(NSRoundedBezelStyle)
+        self._nav_back_btn.setBezelStyle_(_BezelStyle)
         self._nav_back_btn.setTarget_(self)
         self._nav_back_btn.setAction_(
             objc.selector(self.navigateBack_, signature=b"v@:@")
@@ -657,7 +667,7 @@ class PopoverViewController(NSViewController):
             NSMakeRect(15, y, 80, 28)
         )
         self._start_stop_btn.setTitle_("Start")
-        self._start_stop_btn.setBezelStyle_(NSRoundedBezelStyle)
+        self._start_stop_btn.setBezelStyle_(_BezelStyle)
         self._start_stop_btn.setTarget_(self)
         self._start_stop_btn.setAction_(
             objc.selector(self.toggleMining_, signature=b"v@:@")
@@ -670,14 +680,14 @@ class PopoverViewController(NSViewController):
         settings_btn = NSButton.alloc().initWithFrame_(
             NSMakeRect(width - 90, y, 75, 28)
         )
-        settings_btn.setBezelStyle_(NSRoundedBezelStyle)
+        settings_btn.setBezelStyle_(_BezelStyle)
         settings_btn.setTitle_("Settings")
         settings_btn.setTarget_(self)
         settings_btn.setAction_(objc.selector(self.openSettings_, signature=b"v@:@"))
         view.addSubview_(settings_btn)
 
         stats_btn = NSButton.alloc().initWithFrame_(NSMakeRect(width - 155, y, 58, 28))
-        stats_btn.setBezelStyle_(NSRoundedBezelStyle)
+        stats_btn.setBezelStyle_(_BezelStyle)
         stats_btn.setTitle_("Stats")
         stats_btn.setTarget_(self)
         stats_btn.setAction_(objc.selector(self.openStats_, signature=b"v@:@"))
@@ -691,14 +701,14 @@ class PopoverViewController(NSViewController):
         y -= 30
         bench_btn = NSButton.alloc().initWithFrame_(NSMakeRect(15, y, 100, 24))
         bench_btn.setTitle_("Benchmark")
-        bench_btn.setBezelStyle_(NSRoundedBezelStyle)
+        bench_btn.setBezelStyle_(_BezelStyle)
         bench_btn.setTarget_(self)
         bench_btn.setAction_(objc.selector(self.runBenchmark_, signature=b"v@:@"))
         view.addSubview_(bench_btn)
 
         logs_btn = NSButton.alloc().initWithFrame_(NSMakeRect(width - 80, y, 65, 24))
         logs_btn.setTitle_("Logs")
-        logs_btn.setBezelStyle_(NSRoundedBezelStyle)
+        logs_btn.setBezelStyle_(_BezelStyle)
         logs_btn.setTarget_(self)
         logs_btn.setAction_(objc.selector(self.openLogs_, signature=b"v@:@"))
         view.addSubview_(logs_btn)
@@ -711,7 +721,7 @@ class PopoverViewController(NSViewController):
         y -= 28
         quit_btn = NSButton.alloc().initWithFrame_(NSMakeRect(15, y, 110, 24))
         quit_btn.setTitle_("Quit SoloMiner")
-        quit_btn.setBezelStyle_(NSRoundedBezelStyle)
+        quit_btn.setBezelStyle_(_BezelStyle)
         quit_btn.setTarget_(self)
         quit_btn.setAction_(objc.selector(self.quitApp_, signature=b"v@:@"))
         view.addSubview_(quit_btn)
@@ -796,6 +806,9 @@ class PopoverViewController(NSViewController):
     @objc.typedSelector(b"v@:@")
     def updateStats_(self, timer):
         if not getattr(self, "_view_loaded", False):
+            return
+        # Only update dashboard widgets when on the dashboard screen
+        if self._current_screen != "dashboard":
             return
         if not hasattr(self, "_hashrate_val") or self._hashrate_val is None:
             return
@@ -1251,14 +1264,14 @@ class PopoverViewController(NSViewController):
 
         view_log_btn = NSButton.alloc().initWithFrame_(NSMakeRect(12, 26, 140, 22))
         view_log_btn.setTitle_("View Mining Activity")
-        view_log_btn.setBezelStyle_(NSRoundedBezelStyle)
+        view_log_btn.setBezelStyle_(_BezelStyle)
         view_log_btn.setTarget_(self)
         view_log_btn.setAction_(objc.selector(self.openLogs_, signature=b"v@:@"))
         card3.addSubview_(view_log_btn)
 
         clear_log_btn = NSButton.alloc().initWithFrame_(NSMakeRect(12, 2, 120, 22))
         clear_log_btn.setTitle_("Clear Activity Log")
-        clear_log_btn.setBezelStyle_(NSRoundedBezelStyle)
+        clear_log_btn.setBezelStyle_(_BezelStyle)
         clear_log_btn.setTarget_(self)
         clear_log_btn.setAction_(objc.selector(self.clearLogAction_, signature=b"v@:@"))
         card3.addSubview_(clear_log_btn)
@@ -1381,7 +1394,7 @@ class PopoverViewController(NSViewController):
             ping_btn = NSButton.alloc().initWithFrame_(
                 NSMakeRect(w - pad * 2 - 130, 16, 36, 18)
             )
-            ping_btn.setBezelStyle_(NSRoundedBezelStyle)
+            ping_btn.setBezelStyle_(_BezelStyle)
             ping_btn.setTitle_("Ping")
             ping_btn.setTag_(i)
             ping_btn.setTarget_(self)
@@ -1392,7 +1405,7 @@ class PopoverViewController(NSViewController):
             active_btn = NSButton.alloc().initWithFrame_(
                 NSMakeRect(w - pad * 2 - 52, 16, 42, 18)
             )
-            active_btn.setBezelStyle_(NSRoundedBezelStyle)
+            active_btn.setBezelStyle_(_BezelStyle)
             active_btn.setTitle_("Active" if is_active else "Set")
             active_btn.setTag_(i)
             active_btn.setTarget_(self)
@@ -1403,7 +1416,7 @@ class PopoverViewController(NSViewController):
             del_btn = NSButton.alloc().initWithFrame_(
                 NSMakeRect(w - pad * 2 - 88, 16, 32, 18)
             )
-            del_btn.setBezelStyle_(NSRoundedBezelStyle)
+            del_btn.setBezelStyle_(_BezelStyle)
             del_btn.setTitle_("Del")
             del_btn.setTag_(i)
             del_btn.setTarget_(self)
@@ -1469,7 +1482,7 @@ class PopoverViewController(NSViewController):
             NSMakeRect(int(cw * 0.78), 0, int(cw * 0.20), 20)
         )
         add_btn.setTitle_("Add")
-        add_btn.setBezelStyle_(NSRoundedBezelStyle)
+        add_btn.setBezelStyle_(_BezelStyle)
         add_btn.setTarget_(self)
         add_btn.setAction_(objc.selector(self.addPool_, signature=b"v@:@"))
         add_btn.setFont_(NSFont.systemFontOfSize_(10))
@@ -1477,7 +1490,7 @@ class PopoverViewController(NSViewController):
 
         reset_btn = NSButton.alloc().initWithFrame_(NSMakeRect(pad, 10, 95, 24))
         reset_btn.setTitle_("Reset Defaults")
-        reset_btn.setBezelStyle_(NSRoundedBezelStyle)
+        reset_btn.setBezelStyle_(_BezelStyle)
         reset_btn.setTarget_(self)
         reset_btn.setAction_(objc.selector(self.resetPools_, signature=b"v@:@"))
         reset_btn.setFont_(NSFont.systemFontOfSize_(10))
@@ -1822,7 +1835,7 @@ class PopoverViewController(NSViewController):
 
             def _do_ping():
                 online, latency, err = ping_pool(host, port)
-                self._ping_results = (ping_idx, online, latency, err)
+                self._ping_queue.put((ping_idx, online, latency, err))
                 self.performSelectorOnMainThread_withObject_waitUntilDone_(
                     objc.selector(
                         PopoverViewController._pingDone_,
@@ -1836,16 +1849,17 @@ class PopoverViewController(NSViewController):
 
     @objc.typedSelector(b"v@:@")
     def _pingDone_(self, _unused):
-        if hasattr(self, "_ping_results") and self._ping_results:
-            idx, online, latency, err = self._ping_results
-            if idx < len(self._pool_ping_labels):
-                if online:
-                    self._pool_ping_labels[idx].setStringValue_(f"{latency}ms")
-                    self._pool_ping_labels[idx].setTextColor_(ACCENT_GREEN)
-                else:
-                    self._pool_ping_labels[idx].setStringValue_(err or "Offline")
-                    self._pool_ping_labels[idx].setTextColor_(ACCENT_RED)
-            self._ping_results = None
+        try:
+            idx, online, latency, err = self._ping_queue.get_nowait()
+        except queue.Empty:
+            return
+        if idx < len(self._pool_ping_labels):
+            if online:
+                self._pool_ping_labels[idx].setStringValue_(f"{latency}ms")
+                self._pool_ping_labels[idx].setTextColor_(ACCENT_GREEN)
+            else:
+                self._pool_ping_labels[idx].setStringValue_(err or "Offline")
+                self._pool_ping_labels[idx].setTextColor_(ACCENT_RED)
 
     # ── Pool actions ──
     @objc.typedSelector(b"v@:@")
@@ -1884,11 +1898,14 @@ class PopoverViewController(NSViewController):
         h = int(self._settings_tab_container.frame().size.height)
         old = self._settings_tab_views[1]
         new_pools = self._build_settings_pools(w, h)
+        # Set hidden state based on whether pools tab is currently active
+        is_pools_active = (
+            self._settings_tab_seg and self._settings_tab_seg.selectedSegment() == 1
+        )
+        new_pools.setHidden_(not is_pools_active)
         self._settings_tab_views[1] = new_pools
         self._settings_tab_container.addSubview_(new_pools)
         old.removeFromSuperview()
-        if self._settings_tab_seg and self._settings_tab_seg.selectedSegment() == 1:
-            new_pools.setHidden_(False)
 
     @objc.typedSelector(b"v@:@")
     def addPool_(self, sender):
@@ -2201,7 +2218,7 @@ class PopoverViewController(NSViewController):
 
         refresh_btn = NSButton.alloc().initWithFrame_(NSMakeRect(10, 6, 65, 24))
         refresh_btn.setTitle_("Refresh")
-        refresh_btn.setBezelStyle_(NSRoundedBezelStyle)
+        refresh_btn.setBezelStyle_(_BezelStyle)
         refresh_btn.setTarget_(self)
         refresh_btn.setAction_(
             objc.selector(self.refreshLogsAction_, signature=b"v@:@")
@@ -2210,7 +2227,7 @@ class PopoverViewController(NSViewController):
 
         clear_btn = NSButton.alloc().initWithFrame_(NSMakeRect(82, 6, 55, 24))
         clear_btn.setTitle_("Clear")
-        clear_btn.setBezelStyle_(NSRoundedBezelStyle)
+        clear_btn.setBezelStyle_(_BezelStyle)
         clear_btn.setTarget_(self)
         clear_btn.setAction_(objc.selector(self.clearLogsAction_, signature=b"v@:@"))
         view.addSubview_(clear_btn)
@@ -2324,7 +2341,7 @@ class SoloMinerAppDelegate(NSObject):
                             delegate_ref._popover.close()
                     except Exception:
                         delegate_ref._popover.close()
-                return event
+                # Global monitors must NOT return the event (only local monitors do)
 
             self._event_monitor = (
                 NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(mask, _handler)
@@ -2347,6 +2364,10 @@ class SoloMinerAppDelegate(NSObject):
         if self._popover.isShown():
             self._popover.close()
             self._stopEventMonitor()
+            # Invalidate logs timer when popover closes to prevent leak
+            if self._vc._logs_refresh_timer:
+                self._vc._logs_refresh_timer.invalidate()
+                self._vc._logs_refresh_timer = None
         else:
             if self._vc._current_screen != "dashboard":
                 self._vc._navigate_to("dashboard")
