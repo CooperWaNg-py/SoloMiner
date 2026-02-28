@@ -184,7 +184,7 @@ SoloMiner/
 ## Default Pools
 
 | Pool | Host | Port |
-|———|———|———|
+|--|--|--|
 | public-pool.io | public-pool.io | 3333 |
 | VKBIT SOLO | eu.vkbit.com | 3555 |
 | nerdminer.io | pool.nerdminer.io | 3333 |
