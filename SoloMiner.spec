@@ -10,7 +10,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('logo.png', '.')],
     hiddenimports=[
         # PyObjC core
         'objc', 'objc._bridges', 'objc._bridgesupport', 'objc._callable_docstr',
@@ -83,11 +83,12 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='SoloMiner.app',
-    icon=None,
+    icon='SoloMiner.icns',
     bundle_identifier='com.cooperwang.solominer',
     info_plist={
         'CFBundleName': 'SoloMiner',
         'CFBundleDisplayName': 'SoloMiner',
+        'CFBundleIconFile': 'SoloMiner',
         'CFBundleVersion': '1.3.0',
         'CFBundleShortVersionString': '1.3.0',
         'LSUIElement': True,

@@ -11,11 +11,11 @@ The .app bundle will be in dist/SoloMiner.app
 from setuptools import setup
 
 APP = ["main.py"]
-DATA_FILES = []
+DATA_FILES = [("", ["logo.png"])]
 
 OPTIONS = {
     "argv_emulation": False,
-    "iconfile": None,  # Replace with "SoloMiner.icns" if you create an icon
+    "iconfile": "SoloMiner.icns",
     "plist": {
         "CFBundleName": "SoloMiner",
         "CFBundleDisplayName": "SoloMiner",
