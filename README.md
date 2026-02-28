@@ -12,19 +12,19 @@ By **Cooper Wang**
 
 ## Features
 
-- **Menu bar app** -- lives in your macOS menu bar, no dock icon
-- **GPU mining** -- Apple Metal compute shader for SHA-256d (~69 MH/s on M2 Pro)
-- **CPU fallback** -- works on Macs without Metal (much slower)
-- **Stratum v1** -- connects to any Bitcoin solo mining pool
-- **Auto-reconnect** -- recovers from dropped connections with jitter
-- **Difficulty auto-tune** -- measures hashrate and suggests optimal pool difficulty
-- **Address validation** -- checks P2PKH, P2SH, bech32, and taproot formats before mining
-- **Start at login** -- optional launchd agent for automatic startup
-- **Live dashboard** -- hashrate, shares, uptime, GPU info, animated status
-- **Built-in benchmark** -- test your GPU hash rate without connecting to a pool
-- **Terminal UI** -- full curses-based TUI with the same features as the GUI
-- **CLI mode** -- headless mining from the command line
-- **Crash logging** -- all crashes written to `~/Library/Application Support/SoloMiner/crash.log`
+- **Menu bar app** — lives in your macOS menu bar, no dock icon
+- **GPU mining** — Apple Metal compute shader for SHA-256d (~69 MH/s on M2 Pro)
+- **CPU fallback** — works on Macs without Metal (much slower)
+- **Stratum v1** — connects to any Bitcoin solo mining pool
+- **Auto-reconnect** — recovers from dropped connections with jitter
+- **Difficulty auto-tune** — measures hashrate and suggests optimal pool difficulty
+- **Address validation** — checks P2PKH, P2SH, bech32, and taproot formats before mining
+- **Start at login** — optional launchd agent for automatic startup
+- **Live dashboard** — hashrate, shares, uptime, GPU info, animated status
+- **Built-in benchmark** — test your GPU hash rate without connecting to a pool
+- **Terminal UI** — full curses-based TUI with the same features as the GUI
+- **CLI mode** — headless mining from the command line
+- **Crash logging** — all crashes written to `~/Library/Application Support/SoloMiner/crash.log`
 
 ## Requirements
 
@@ -46,10 +46,10 @@ pip3 install -r requirements.txt
 ```
 
 This installs:
-- `pyobjc-core` -- Python-ObjC bridge
-- `pyobjc-framework-Cocoa` -- Foundation + AppKit
-- `pyobjc-framework-Metal` -- GPU compute
-- `pyobjc-framework-Quartz` -- Core Animation (ambient UI effects)
+- `pyobjc-core` — Python-ObjC bridge
+- `pyobjc-framework-Cocoa` — Foundation + AppKit
+- `pyobjc-framework-Metal` — GPU compute
+- `pyobjc-framework-Quartz` — Core Animation (ambient UI effects)
 
 ### 2. Run the GUI
 
@@ -84,7 +84,7 @@ Full native macOS popover UI with dark theme, glass-card styling, and ambient an
 ### Terminal UI
 
 ```bash
-python3 main.py --tui
+python3 main.py —tui
 ```
 
 Curses-based interface with full feature parity. Works over SSH.
@@ -92,13 +92,13 @@ Curses-based interface with full feature parity. Works over SSH.
 ### CLI (headless)
 
 ```bash
-python3 cli.py --address bc1qYOUR_ADDRESS --pool public-pool.io --port 3333
+python3 cli.py —address bc1qYOUR_ADDRESS —pool public-pool.io —port 3333
 ```
 
 Minimal command-line miner with colored log output. Good for running in tmux/screen.
 
 ```bash
-python3 cli.py --benchmark
+python3 cli.py —benchmark
 ```
 
 Run a GPU benchmark without connecting to a pool.
@@ -133,11 +133,11 @@ The app bundle is created at `dist/SoloMiner.app`.
 
 ```bash
 pip3 install nuitka
-python3 -m nuitka --macos-app-name=SoloMiner --macos-app-mode=ui-element \
-    --include-package=solominer --include-module=objc \
-    --include-module=Foundation --include-module=AppKit \
-    --include-module=Metal --include-module=Quartz \
-    --standalone --onefile main.py
+python3 -m nuitka —macos-app-name=SoloMiner —macos-app-mode=ui-element \
+    —include-package=solominer —include-module=objc \
+    —include-module=Foundation —include-module=AppKit \
+    —include-module=Metal —include-module=Quartz \
+    —standalone —onefile main.py
 ```
 
 ### After building
@@ -152,9 +152,9 @@ open dist/SoloMiner.app
 
 Since the app is not signed with an Apple Developer certificate, macOS will block it from opening the first time. To get around this:
 
-1. Try to open `SoloMiner.app` -- macOS will say it "can't be opened because Apple cannot check it for malicious software"
+1. Try to open `SoloMiner.app` — macOS will say it "can't be opened because Apple cannot check it for malicious software"
 2. Open **System Settings** > **Privacy & Security**
-3. Scroll down -- you'll see a message about SoloMiner being blocked
+3. Scroll down — you'll see a message about SoloMiner being blocked
 4. Click **Open Anyway**
 5. In the confirmation dialog, click **Open**
 
@@ -166,7 +166,7 @@ Alternatively, you can right-click the app > **Open** > **Open** to bypass Gatek
 
 ```
 SoloMiner/
-    main.py              # Entry point, crash handlers, --tui routing
+    main.py              # Entry point, crash handlers, —tui routing
     cli.py               # Standalone CLI miner
     setup.py             # py2app build config
     SoloMiner.spec       # PyInstaller build config
@@ -184,7 +184,7 @@ SoloMiner/
 ## Default Pools
 
 | Pool | Host | Port |
-|------|------|------|
+|———|———|———|
 | public-pool.io | public-pool.io | 3333 |
 | VKBIT SOLO | eu.vkbit.com | 3555 |
 | nerdminer.io | pool.nerdminer.io | 3333 |
@@ -195,11 +195,11 @@ You can add custom pools in Settings > Pools.
 
 ## How It Works
 
-1. **Stratum v1** -- SoloMiner connects to a mining pool, subscribes, and receives block templates (jobs)
-2. **SHA-256d** -- each job is an 80-byte block header. The miner varies the 4-byte nonce field and computes `SHA256(SHA256(header))` for each candidate
-3. **Metal GPU** -- the SHA-256d computation runs on the GPU via an Apple Metal compute shader, dispatching ~4 million nonces per batch
-4. **Share submission** -- when a hash meets the pool's share difficulty target, the nonce is submitted back to the pool
-5. **Difficulty auto-tune** -- after ~15 seconds of mining, the engine measures hashrate and requests an optimal difficulty from the pool targeting ~1 share every 20 seconds
+1. **Stratum v1** — SoloMiner connects to a mining pool, subscribes, and receives block templates (jobs)
+2. **SHA-256d** — each job is an 80-byte block header. The miner varies the 4-byte nonce field and computes `SHA256(SHA256(header))` for each candidate
+3. **Metal GPU** — the SHA-256d computation runs on the GPU via an Apple Metal compute shader, dispatching ~4 million nonces per batch
+4. **Share submission** — when a hash meets the pool's share difficulty target, the nonce is submitted back to the pool
+5. **Difficulty auto-tune** — after ~15 seconds of mining, the engine measures hashrate and requests an optimal difficulty from the pool targeting ~1 share every 20 seconds
 
 Solo mining means you're trying to find an actual Bitcoin block. The odds are astronomically low with consumer hardware (~1 in 10^15 per block at current difficulty), but if you do find one, the entire block reward (~3.125 BTC) is yours.
 
@@ -211,9 +211,9 @@ Settings are stored at:
 ```
 
 Other files in the same directory:
-- `activity.log` -- mining activity log
-- `stats.json` -- cumulative statistics (hashes, runtime, shares)
-- `crash.log` -- crash reports
+- `activity.log` — mining activity log
+- `stats.json` — cumulative statistics (hashes, runtime, shares)
+- `crash.log` — crash reports
 
 Login item plist (when "Start at Login" is enabled):
 ```
